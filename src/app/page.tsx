@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listDecks } from "@/lib/deck-store";
 import { getTemplate } from "@/templates/registry";
+import { ImportButton } from "@/components/import/ImportButton";
 
 const GRADE_LABELS: Record<string, string> = {
   preschool: "学前",
@@ -23,12 +24,15 @@ export default async function HomePage() {
           <h1 className="mt-1 font-heading text-2xl font-bold sm:text-3xl">我的课件</h1>
           <p className="mt-2 text-sm text-muted">点击课件可预览，或直接「开始授课」全屏播放。</p>
         </div>
-        <Link
-          href="/create"
-          className="rounded-lg bg-primary px-5 py-2.5 font-medium text-white shadow hover:opacity-90"
-        >
-          ✨ 一句话生成
-        </Link>
+        <div className="flex flex-wrap items-start gap-2">
+          <ImportButton />
+          <Link
+            href="/create"
+            className="rounded-lg bg-primary px-5 py-2.5 font-medium text-white shadow hover:opacity-90"
+          >
+            ✨ 一句话生成
+          </Link>
+        </div>
       </header>
 
       <section className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
