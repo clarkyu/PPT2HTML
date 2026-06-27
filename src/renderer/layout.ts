@@ -4,28 +4,43 @@
  * 核心思想（docs/02-architecture.md）：页只存「内容块 + 布局意图」，不存坐标。
  * 手机一律单列纵向堆叠；md 及以上按布局意图分栏。这样多端自适应是确定性行为。
  */
-import type { Block, Slide, SlideLayout } from "@/schema/types";
+import type { Block, HeadingBlock, Slide, SlideLayout } from "@/schema/types";
 
 export function isMediaBlock(block: Block): boolean {
   return block.type === "image" || block.type === "media";
 }
 
+function isLeadHeading(block: Block): block is HeadingBlock {
+  return block.type === "heading" && block.level <= 2;
+}
+
 export type SlideArrangement =
   | { kind: "stack"; blocks: Block[] }
-  | { kind: "split"; primary: Block[]; secondary: Block[]; mediaSide: "left" | "right" };
+  | {
+      kind: "split";
+      /** 通栏页眉（如页级标题），渲染在两栏之上，避免标题被切进半栏 */
+      header: Block[];
+      primary: Block[];
+      secondary: Block[];
+      mediaSide: "left" | "right";
+    };
 
 /** 根据布局意图，把块排布为「单列堆叠」或「两栏分割」。 */
 export function getArrangement(slide: Slide): SlideArrangement {
   const { layout, blocks } = slide;
 
   if (layout === "two-column") {
-    const mid = Math.ceil(blocks.length / 2);
-    return {
-      kind: "split",
-      primary: blocks.slice(0, mid),
-      secondary: blocks.slice(mid),
-      mediaSide: "left",
-    };
+    // 开头连续的页级标题（level<=2）抽为通栏页眉，避免标题被盲切到某一栏。
+    let i = 0;
+    while (i < blocks.length && isLeadHeading(blocks[i])) i++;
+    const header = blocks.slice(0, i);
+    const body = blocks.slice(i);
+    const mid = Math.ceil(body.length / 2);
+    const primary = body.slice(0, mid);
+    const secondary = body.slice(mid);
+    // 任一栏为空（如正文只有一块）则降级为单列堆叠，避免出现空白半屏。
+    if (primary.length === 0 || secondary.length === 0) return { kind: "stack", blocks };
+    return { kind: "split", header, primary, secondary, mediaSide: "left" };
   }
 
   if (layout === "media-left" || layout === "media-right") {
@@ -35,6 +50,7 @@ export function getArrangement(slide: Slide): SlideArrangement {
     if (media.length === 0) return { kind: "stack", blocks };
     return {
       kind: "split",
+      header: [],
       primary: layout === "media-left" ? media : rest,
       secondary: layout === "media-left" ? rest : media,
       mediaSide: layout === "media-left" ? "left" : "right",
@@ -57,4 +73,9 @@ export function getSlideClasses(layout: SlideLayout): string {
     default:
       return "items-start justify-start";
   }
+}
+
+/** 单列堆叠时，内容列的宽度约束：media-full 全幅铺满，其余收敛到可读宽度。 */
+export function getStackWidthClass(layout: SlideLayout): string {
+  return layout === "media-full" ? "w-full" : "mx-auto w-full max-w-4xl";
 }

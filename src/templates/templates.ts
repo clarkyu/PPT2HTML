@@ -12,7 +12,8 @@ export const templates: Template[] = [
     description: "沉稳的学术风，衬线标题，适合理科与讲解型课堂。",
     thumbnail: "/templates/academic-green.svg",
     colors: {
-      primary: "#168A63",
+      // primary 取较深绿，使白字按钮对比度达 WCAG AA（白字 on #0E6B4F ≈ 6.5:1）
+      primary: "#0E6B4F",
       secondary: "#475569",
       accent: "#EAB308",
       background: "#FFFFFF",

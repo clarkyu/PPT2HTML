@@ -2,18 +2,18 @@
 
 /**
  * 全屏播放器（F9）：键盘/触控/点击翻页、演讲者备注、计时、全屏。
- * 幻灯片在服务端预渲染后作为 ReactNode 传入，客户端只负责切换与控制，
- * 以保持客户端轻量（KaTeX 等留在服务端）。
+ * 幻灯片在服务端预渲染后作为 ReactNode 传入；主题变量也在服务端算好以普通对象传入，
+ * 客户端不引入模板注册表/KaTeX，保持轻量。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import Link from "next/link";
-import type { Deck } from "@/schema/types";
-import { ThemedSurface } from "@/renderer/ThemedSurface";
 
 export interface PlayerProps {
   title: string;
   deckId: string;
-  themeRef: Pick<Deck, "templateId" | "theme">;
+  /** 服务端 buildThemeVars 产出的 CSS 变量对象（可序列化） */
+  themeVars: CSSProperties;
   slides: React.ReactNode[];
   notes: (string | undefined)[];
   sectionTitles: string[];
@@ -25,7 +25,15 @@ function fmt(sec: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-export function Player({ title, deckId, themeRef, slides, notes, sectionTitles }: PlayerProps) {
+/** 点击/键盘目标是否为可交互元素（媒体控件、链接、按钮等），用于避免翻页劫持。 */
+function isInteractiveTarget(el: EventTarget | null): boolean {
+  return (
+    el instanceof HTMLElement &&
+    el.closest("a,button,video,audio,input,select,textarea,label,[role=button]") !== null
+  );
+}
+
+export function Player({ title, deckId, themeVars, slides, notes, sectionTitles }: PlayerProps) {
   const total = slides.length;
   const [index, setIndex] = useState(0);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -34,6 +42,7 @@ export function Player({ title, deckId, themeRef, slides, notes, sectionTitles }
   const [running, setRunning] = useState(true);
   const rootRef = useRef<HTMLDivElement>(null);
   const touchX = useRef<number | null>(null);
+  const swiped = useRef(false);
 
   const next = useCallback(() => setIndex((i) => Math.min(i + 1, total - 1)), [total]);
   const prev = useCallback(() => setIndex((i) => Math.max(i - 1, 0)), []);
@@ -46,13 +55,18 @@ export function Player({ title, deckId, themeRef, slides, notes, sectionTitles }
     }
   }, []);
 
-  // 键盘翻页
+  // 键盘翻页（空格仅在焦点不在控件上时翻页，避免劫持按钮的空格激活）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const interactive = isInteractiveTarget(e.target);
       switch (e.key) {
         case "ArrowRight":
         case "PageDown":
+          e.preventDefault();
+          next();
+          break;
         case " ":
+          if (interactive) return;
           e.preventDefault();
           next();
           break;
@@ -97,15 +111,24 @@ export function Player({ title, deckId, themeRef, slides, notes, sectionTitles }
 
   const onTouchStart = (e: React.TouchEvent) => {
     touchX.current = e.changedTouches[0].clientX;
+    swiped.current = false;
   };
   const onTouchEnd = (e: React.TouchEvent) => {
     if (touchX.current == null) return;
     const dx = e.changedTouches[0].clientX - touchX.current;
-    if (Math.abs(dx) > 50) (dx < 0 ? next : prev)();
+    if (Math.abs(dx) > 50) {
+      swiped.current = true;
+      (dx < 0 ? next : prev)();
+    }
     touchX.current = null;
   };
 
   const onSlideClick = (e: React.MouseEvent) => {
+    if (swiped.current) {
+      swiped.current = false; // 抑制滑动后浏览器补发的合成 click，避免双触发
+      return;
+    }
+    if (isInteractiveTarget(e.target)) return; // 点击媒体控件/链接时不翻页
     const { left, width } = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - left;
     if (x < width * 0.25) prev();
@@ -113,6 +136,9 @@ export function Player({ title, deckId, themeRef, slides, notes, sectionTitles }
   };
 
   const note = notes[index];
+  const positionText = `第 ${index + 1} 页，共 ${total} 页${
+    sectionTitles[index] ? ` · ${sectionTitles[index]}` : ""
+  }`;
 
   return (
     <div ref={rootRef} className="fixed inset-0 flex flex-col bg-neutral-900 text-white">
@@ -144,11 +170,15 @@ export function Player({ title, deckId, themeRef, slides, notes, sectionTitles }
       </header>
 
       {/* 幻灯片区 */}
-      <main className="relative flex-1 overflow-hidden p-2 sm:p-4">
-        <ThemedSurface
-          deck={themeRef}
-          className="mx-auto flex h-full w-full max-w-6xl cursor-pointer overflow-auto rounded-xl p-6 shadow-2xl sm:p-10"
-          style={{}}
+      <main
+        className="relative flex-1 overflow-hidden p-2 sm:p-4"
+        role="region"
+        aria-roledescription="幻灯片"
+        aria-label={positionText}
+      >
+        <div
+          style={{ ...themeVars, fontFamily: "var(--font-body)" }}
+          className="mx-auto flex h-full w-full max-w-6xl cursor-pointer overflow-auto rounded-xl bg-background p-6 text-foreground shadow-2xl sm:p-10"
         >
           <div
             className="flex min-h-full w-full"
@@ -158,7 +188,11 @@ export function Player({ title, deckId, themeRef, slides, notes, sectionTitles }
           >
             {slides[index]}
           </div>
-        </ThemedSurface>
+        </div>
+        {/* 供屏幕阅读器播报的切页提示 */}
+        <div aria-live="polite" className="sr-only">
+          {positionText}
+        </div>
       </main>
 
       {/* 演讲者备注 */}

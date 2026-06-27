@@ -56,8 +56,8 @@ export interface Slide {
   layout: SlideLayout; // 布局意图，渲染层按端落地
   blocks: Block[];
   speakerNotes?: string; // 演讲者备注 (F9)
-  transition?: SlideTransition;
-  pedagogyRole?: PedagogyRole; // 教学法角色
+  transition?: SlideTransition; // 页过渡：M1 播放器为瞬切，未应用动效（后续阶段实现）
+  pedagogyRole?: PedagogyRole; // 教学法角色（概览页已展示标签）
 }
 
 export type SlideTransition = "none" | "fade" | "slide";
@@ -225,10 +225,10 @@ export interface ColorTokens {
 }
 
 export interface ThemeOverride {
-  colors?: Partial<ColorTokens>;
-  fontFamily?: { heading?: string; body?: string };
-  fontScale?: number;
-  logoUrl?: string; // 校徽/个人标识
+  colors?: Partial<ColorTokens>; // M1 渲染层已消费（换模板/覆盖配色生效）
+  fontFamily?: { heading?: string; body?: string }; // M1 已消费
+  fontScale?: number; // 字号层级缩放：M3「基础自定义」消费，M1 渲染层暂未应用
+  logoUrl?: string; // 校徽/个人标识：M3「基础自定义」消费，M1 暂未呈现
 }
 
 export interface Template {

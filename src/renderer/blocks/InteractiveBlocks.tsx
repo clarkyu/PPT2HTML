@@ -62,12 +62,12 @@ export function Poll({ block }: { block: PollBlock }) {
   );
 }
 
-export function Mcq({ block }: { block: McqBlock }) {
+export function Mcq({ block, reveal = false }: { block: McqBlock; reveal?: boolean }) {
   return (
     <InteractiveShell prompt={block.prompt} badge="选择题">
       <ul className="space-y-2">
         {block.options.map((opt, i) => {
-          const correct = i === block.answerIndex;
+          const correct = reveal && i === block.answerIndex;
           return (
             <li
               key={i}
@@ -84,7 +84,7 @@ export function Mcq({ block }: { block: McqBlock }) {
           );
         })}
       </ul>
-      {block.explanation && (
+      {reveal && block.explanation && (
         <p className="text-sm text-muted">
           <span className="font-medium text-foreground/80">解析：</span>
           {block.explanation}
@@ -94,7 +94,7 @@ export function Mcq({ block }: { block: McqBlock }) {
   );
 }
 
-export function TrueFalse({ block }: { block: TrueFalseBlock }) {
+export function TrueFalse({ block, reveal = false }: { block: TrueFalseBlock; reveal?: boolean }) {
   const options = [
     { label: "正确", value: true },
     { label: "错误", value: false },
@@ -103,7 +103,7 @@ export function TrueFalse({ block }: { block: TrueFalseBlock }) {
     <InteractiveShell prompt={block.prompt} badge="判断题">
       <div className="flex gap-3">
         {options.map((o) => {
-          const correct = o.value === block.answer;
+          const correct = reveal && o.value === block.answer;
           return (
             <span
               key={o.label}
@@ -117,7 +117,7 @@ export function TrueFalse({ block }: { block: TrueFalseBlock }) {
           );
         })}
       </div>
-      {block.explanation && (
+      {reveal && block.explanation && (
         <p className="text-sm text-muted">
           <span className="font-medium text-foreground/80">解析：</span>
           {block.explanation}
@@ -127,7 +127,7 @@ export function TrueFalse({ block }: { block: TrueFalseBlock }) {
   );
 }
 
-export function Quiz({ block }: { block: QuizBlock }) {
+export function Quiz({ block, reveal = false }: { block: QuizBlock; reveal?: boolean }) {
   return (
     <InteractiveShell
       prompt={block.prompt}
@@ -140,15 +140,15 @@ export function Quiz({ block }: { block: QuizBlock }) {
               {i + 1}. {q.prompt}
             </p>
             <ul className="space-y-1 text-sm">
-              {q.options.map((opt, oi) => (
-                <li
-                  key={oi}
-                  className={oi === q.answerIndex ? "font-medium text-primary" : "text-foreground/80"}
-                >
-                  {letter(oi)}. {opt}
-                  {oi === q.answerIndex && " ✓"}
-                </li>
-              ))}
+              {q.options.map((opt, oi) => {
+                const correct = reveal && oi === q.answerIndex;
+                return (
+                  <li key={oi} className={correct ? "font-medium text-primary" : "text-foreground/80"}>
+                    {letter(oi)}. {opt}
+                    {correct && " ✓"}
+                  </li>
+                );
+              })}
             </ul>
           </li>
         ))}

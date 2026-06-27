@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { getDeck, listDeckIds } from "@/lib/deck-store";
 import { SlideRenderer } from "@/renderer/SlideRenderer";
 import { flattenSlides } from "@/renderer/flatten";
+import { getTemplate } from "@/templates/registry";
+import { buildThemeVars } from "@/templates/theme";
 import { Player } from "@/player/Player";
 
 export async function generateStaticParams() {
@@ -15,16 +17,17 @@ export default async function PlayPage({ params }: { params: Promise<{ id: strin
 
   const flat = flattenSlides(deck);
 
-  // 幻灯片在服务端预渲染，作为 ReactNode 传给客户端播放器
-  const slides = flat.map((f) => <SlideRenderer key={f.slide.id} slide={f.slide} />);
+  // 幻灯片在服务端预渲染；投屏授课默认不揭示答案（reveal=false）。
+  const slides = flat.map((f) => <SlideRenderer key={f.slide.id} slide={f.slide} reveal={false} />);
   const notes = flat.map((f) => f.slide.speakerNotes);
   const sectionTitles = flat.map((f) => f.sectionTitle);
+  const themeVars = buildThemeVars(getTemplate(deck.templateId), deck.theme);
 
   return (
     <Player
       title={deck.meta.title}
       deckId={deck.id}
-      themeRef={{ templateId: deck.templateId, theme: deck.theme }}
+      themeVars={themeVars}
       slides={slides}
       notes={notes}
       sectionTitles={sectionTitles}

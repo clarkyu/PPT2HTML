@@ -7,7 +7,8 @@
  * 颜色以「R G B」空格分隔，配合 Tailwind 的 <alpha-value>。见 docs/03-data-model.md。
  */
 :root {
-  --color-primary: 22 138 99;
+  --color-primary: 14 107 79;
+  --font-scale: 1;
   --color-secondary: 71 85 105;
   --color-accent: 234 179 8;
   --color-background: 255 255 255;

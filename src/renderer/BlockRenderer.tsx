@@ -1,6 +1,8 @@
 /**
  * 块分发器：按 block.type 渲染对应组件。
  * 未知/未来的块类型降级为占位提示，不让整页崩溃（docs/03-data-model.md 的向前兼容策略）。
+ *
+ * reveal：互动题是否揭示答案（默认否）。fill：媒体是否全幅铺满（media-full 布局）。
  */
 import type { Block } from "@/schema/types";
 import {
@@ -23,7 +25,15 @@ import {
   WordCloud,
 } from "./blocks/InteractiveBlocks";
 
-export function BlockRenderer({ block }: { block: Block }) {
+export function BlockRenderer({
+  block,
+  reveal = false,
+  fill = false,
+}: {
+  block: Block;
+  reveal?: boolean;
+  fill?: boolean;
+}) {
   switch (block.type) {
     case "heading":
       return <Heading block={block} />;
@@ -32,7 +42,7 @@ export function BlockRenderer({ block }: { block: Block }) {
     case "bulletList":
       return <BulletList block={block} />;
     case "image":
-      return <ImageView block={block} />;
+      return <ImageView block={block} fill={fill} />;
     case "code":
       return <Code block={block} />;
     case "quote":
@@ -40,17 +50,17 @@ export function BlockRenderer({ block }: { block: Block }) {
     case "table":
       return <Table block={block} />;
     case "media":
-      return <Media block={block} />;
+      return <Media block={block} fill={fill} />;
     case "formula":
       return <Formula block={block} />;
     case "poll":
       return <Poll block={block} />;
     case "mcq":
-      return <Mcq block={block} />;
+      return <Mcq block={block} reveal={reveal} />;
     case "trueFalse":
-      return <TrueFalse block={block} />;
+      return <TrueFalse block={block} reveal={reveal} />;
     case "quiz":
-      return <Quiz block={block} />;
+      return <Quiz block={block} reveal={reveal} />;
     case "discussionWall":
       return <DiscussionWall block={block} />;
     case "wordCloud":

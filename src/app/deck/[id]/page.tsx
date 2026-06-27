@@ -20,6 +20,15 @@ const GRADE_LABELS: Record<string, string> = {
   adult: "成人",
 };
 
+const PEDAGOGY_LABELS: Record<string, string> = {
+  cover: "封面",
+  intro: "导入",
+  explain: "讲解",
+  example: "举例",
+  interaction: "互动",
+  summary: "小结",
+};
+
 export default async function DeckPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const deck = await getDeck(id);
@@ -77,10 +86,18 @@ export default async function DeckPage({ params }: { params: Promise<{ id: strin
                   <div key={slide.id} className="overflow-hidden rounded-xl border border-muted/20 shadow-sm">
                     <div className="flex items-center justify-between bg-surface px-3 py-1.5 text-xs text-muted">
                       <span>第 {idx + 1} 页</span>
-                      <span>{slide.layout}</span>
+                      <span className="flex items-center gap-2">
+                        {slide.pedagogyRole && (
+                          <span className="rounded bg-primary/10 px-1.5 text-primary">
+                            {PEDAGOGY_LABELS[slide.pedagogyRole]}
+                          </span>
+                        )}
+                        <span>{slide.layout}</span>
+                      </span>
                     </div>
                     <ThemedSurface deck={deck} className="min-h-[240px] p-6 sm:p-8">
-                      <SlideRenderer slide={slide} />
+                      {/* 备课/概览视图揭示互动题参考答案与解析 */}
+                      <SlideRenderer slide={slide} reveal />
                     </ThemedSurface>
                   </div>
                 );

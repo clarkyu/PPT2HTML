@@ -43,6 +43,7 @@ export function buildThemeVars(
     "--color-muted": hexToTriplet(colors.muted),
     "--font-heading": heading,
     "--font-body": body,
+    // 预留钩子：M3「基础自定义」接入字号缩放时由排版消费；M1 typography 暂未引用。
     "--font-scale": override?.fontScale ?? 1,
   };
   return vars;
