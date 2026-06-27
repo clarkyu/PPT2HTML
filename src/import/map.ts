@@ -2,15 +2,23 @@
  * 把解析出的 PPT 内容映射进课件数据模型（与一句话生成产物同构的 Deck）。
  * 这是「迁移」：搬运内容与结构、套用模板，而非逐像素复刻。文本按 schema 上限裁剪，
  * 幻灯片分节装入（满足 section/slide 数量上界）。
+ *
+ * 纯函数：图片资源 id 同步生成并填入 image.src，原始字节随 deck 一并返回，由调用方持久化。
  */
 import type { Block, Deck, Section, Slide, SlideLayout } from "@/schema/types";
 import { createBlockId } from "@/schema/factory";
-import { saveAsset } from "@/lib/asset-store";
+import { newAssetId } from "@/lib/asset-store";
 import type { ParsedPptx, ParsedSlide } from "./pptx";
 
 const SLIDES_PER_SECTION = 40;
 
-function slideToBlocks(ps: ParsedSlide, isCover: boolean): Block[] {
+export interface PendingAsset {
+  id: string;
+  data: Uint8Array;
+  contentType: string;
+}
+
+function slideToBlocks(ps: ParsedSlide, isCover: boolean, assets: PendingAsset[]): Block[] {
   const blocks: Block[] = [];
   if (ps.title) {
     blocks.push({
@@ -25,14 +33,14 @@ function slideToBlocks(ps: ParsedSlide, isCover: boolean): Block[] {
       const items = group.map((s) => s.slice(0, 2000)).slice(0, 50);
       blocks.push({ id: createBlockId("b"), type: "bulletList", items });
     } else if (group.length === 1) {
-      // 单段正文按 TextBlock 上限（5000）裁剪，避免不必要的截断
       blocks.push({ id: createBlockId("b"), type: "text", text: group[0].slice(0, 5000) });
     }
   }
-  // 仅对能进入最终 blocks（≤50）的图片调用 saveAsset，避免写入永不被引用的资源
+  // 仅对能进入最终 blocks(≤50) 的图片登记资源，避免登记永不被引用的资源
   const remaining = Math.max(0, 50 - blocks.length);
   for (const img of ps.images.slice(0, remaining)) {
-    const aid = saveAsset(img.data, img.contentType);
+    const aid = newAssetId();
+    assets.push({ id: aid, data: img.data, contentType: img.contentType });
     blocks.push({ id: createBlockId("b"), type: "image", src: `/api/assets/${aid}` });
   }
   if (blocks.length === 0) {
@@ -53,18 +61,19 @@ function slideLayout(ps: ParsedSlide, isCover: boolean): SlideLayout {
 export function mapPptxToDeck(
   parsed: ParsedPptx,
   opts: { id: string; now: string; templateId: string; fallbackTitle: string },
-): Deck {
+): { deck: Deck; assets: PendingAsset[] } {
+  const assets: PendingAsset[] = [];
+
   const slides: Slide[] = parsed.slides.map((ps, idx) => {
     const isCover = idx === 0;
     return {
       id: createBlockId("sld"),
       layout: slideLayout(ps, isCover),
       pedagogyRole: isCover ? "cover" : undefined,
-      blocks: slideToBlocks(ps, isCover),
+      blocks: slideToBlocks(ps, isCover, assets),
     };
   });
 
-  // 分节装入（满足 section/slide 数量上界）
   const sections: Section[] = [];
   for (let start = 0; start < slides.length; start += SLIDES_PER_SECTION) {
     const chunk = slides.slice(start, start + SLIDES_PER_SECTION);
@@ -78,7 +87,7 @@ export function mapPptxToDeck(
     });
   }
 
-  return {
+  const deck: Deck = {
     id: opts.id,
     version: 1,
     meta: {
@@ -91,4 +100,6 @@ export function mapPptxToDeck(
     createdAt: opts.now,
     updatedAt: opts.now,
   };
+
+  return { deck, assets };
 }

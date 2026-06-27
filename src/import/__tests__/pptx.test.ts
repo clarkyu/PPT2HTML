@@ -41,7 +41,7 @@ describe("PPT 导入（OOXML 解析 + 映射）", () => {
     const imgCount = parsed.slides.reduce((n, s) => n + s.images.length, 0);
     expect(imgCount).toBeGreaterThanOrEqual(1);
 
-    const deck = mapPptxToDeck(parsed, {
+    const { deck, assets } = mapPptxToDeck(parsed, {
       id: "deck_imp",
       now: "2026-06-27T00:00:00.000Z",
       templateId: "tpl-classic-blue",
@@ -49,6 +49,7 @@ describe("PPT 导入（OOXML 解析 + 映射）", () => {
     });
     expect(deckSchema.safeParse(deck).success).toBe(true);
     expect(deck.meta.source).toBe("pptx-import");
+    expect(assets.length).toBeGreaterThanOrEqual(1);
 
     const blocks = deck.sections.flatMap((s) => s.slides).flatMap((sl) => sl.blocks);
     expect(blocks.some((b) => b.type === "bulletList")).toBe(true);

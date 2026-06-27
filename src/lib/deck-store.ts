@@ -1,16 +1,10 @@
 /**
- * 课件存取（M1 读 + M2 写，内存实现）。
- *
- * 这是一个有意收窄的接口：listDecks / getDeck / saveDeck。M5 接入 Prisma 时仅替换此文件
- * 的实现（改为查/写库），调用方（路由、渲染层、生成流水线）无需改动。
- *
- * 注意：内存存储仅在单进程（next dev / next start）内有效，进程重启即丢失，
- * 多实例部署下不共享——这是 M5 之前的过渡实现。
+ * 课件存取。配置 DATABASE_URL 时走 PostgreSQL（持久化），否则回退内存实现（本地/CI/无 DB）。
+ * 接口收窄为 listDecks / getDeck / saveDeck，调用方无需感知后端。
  */
 import type { Deck } from "@/schema/types";
 import { fixtureDecks } from "@/schema/fixtures/decks";
-
-const store = new Map<string, Deck>(fixtureDecks.map((d) => [d.id, d]));
+import { getPool, usePostgres } from "./db";
 
 export interface DeckSummary {
   id: string;
@@ -23,6 +17,13 @@ export interface DeckSummary {
   updatedAt: string;
 }
 
+// 内存回退：以 fixtures 作种子（仅无 DB 模式）。
+const mem = new Map<string, Deck>(fixtureDecks.map((d) => [d.id, d]));
+
+function slideCountOf(d: Deck): number {
+  return d.sections.reduce((n, s) => n + s.slides.length, 0);
+}
+
 function toSummary(d: Deck): DeckSummary {
   return {
     id: d.id,
@@ -30,30 +31,66 @@ function toSummary(d: Deck): DeckSummary {
     subject: d.meta.subject,
     gradeLevel: d.meta.gradeLevel,
     templateId: d.templateId,
-    slideCount: d.sections.reduce((n, s) => n + s.slides.length, 0),
+    slideCount: slideCountOf(d),
     source: d.meta.source,
     updatedAt: d.updatedAt,
   };
 }
 
 export async function listDecks(): Promise<DeckSummary[]> {
-  return [...store.values()]
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .map(toSummary);
+  if (usePostgres) {
+    const { rows } = await getPool().query(
+      `SELECT id, title, subject, grade_level, template_id, slide_count, source, updated_at
+         FROM decks ORDER BY updated_at DESC LIMIT 200`,
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      subject: r.subject ?? undefined,
+      gradeLevel: r.grade_level ?? undefined,
+      templateId: r.template_id,
+      slideCount: r.slide_count,
+      source: r.source,
+      updatedAt: new Date(r.updated_at).toISOString(),
+    }));
+  }
+  return [...mem.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(toSummary);
 }
 
 export async function getDeck(id: string): Promise<Deck | null> {
-  return store.get(id) ?? null;
+  if (usePostgres) {
+    const { rows } = await getPool().query(`SELECT data FROM decks WHERE id = $1`, [id]);
+    return rows[0] ? (rows[0].data as Deck) : null;
+  }
+  return mem.get(id) ?? null;
 }
 
 export async function saveDeck(deck: Deck): Promise<Deck> {
-  store.set(deck.id, deck);
+  if (usePostgres) {
+    await getPool().query(
+      `INSERT INTO decks (id, title, subject, grade_level, template_id, source, version, slide_count, data, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11)
+       ON CONFLICT (id) DO UPDATE SET
+         title=$2, subject=$3, grade_level=$4, template_id=$5, source=$6,
+         version=$7, slide_count=$8, data=$9::jsonb, updated_at=$11`,
+      [
+        deck.id,
+        deck.meta.title,
+        deck.meta.subject ?? null,
+        deck.meta.gradeLevel ?? null,
+        deck.templateId,
+        deck.meta.source,
+        deck.version,
+        slideCountOf(deck),
+        JSON.stringify(deck),
+        deck.createdAt,
+        deck.updatedAt,
+      ],
+    );
+    return deck;
+  }
+  mem.set(deck.id, deck);
   return deck;
-}
-
-/** 仅返回 fixtures 的 id 供 generateStaticParams 预渲染；运行时生成的课件走动态渲染。 */
-export async function listDeckIds(): Promise<string[]> {
-  return fixtureDecks.map((d) => d.id);
 }
 
 export function newDeckId(): string {

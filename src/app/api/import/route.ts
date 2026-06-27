@@ -3,6 +3,7 @@ import { parsePptx } from "@/import/pptx";
 import { mapPptxToDeck } from "@/import/map";
 import { deckSchema } from "@/schema/zod";
 import { newDeckId, saveDeck } from "@/lib/deck-store";
+import { putAsset } from "@/lib/asset-store";
 import { errorResponse } from "@/lib/api-error";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
     }
 
     const fallbackTitle = file.name.replace(/\.pptx$/i, "") || "导入的课件";
-    const deck = mapPptxToDeck(parsed, {
+    const { deck, assets } = mapPptxToDeck(parsed, {
       id: newDeckId(),
       now: new Date().toISOString(),
       templateId: "tpl-classic-blue",
@@ -58,6 +59,8 @@ export async function POST(req: Request) {
     if (!check.success) {
       return errorResponse(check.error, "导入结果不合法");
     }
+    // 先持久化图片资源，再落库课件（确保引用可解析）。
+    await Promise.all(assets.map((a) => putAsset(a.id, a.data, a.contentType)));
     await saveDeck(deck);
     return NextResponse.json({ id: deck.id, slides: parsed.slides.length });
   } catch (e) {

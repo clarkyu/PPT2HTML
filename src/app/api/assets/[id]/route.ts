@@ -11,7 +11,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
   const { id } = await params;
   if (!/^a_[a-z0-9]+$/.test(id)) return new Response("Not found", { status: 404 });
-  const asset = getAsset(id);
+  const asset = await getAsset(id);
   if (!asset) return new Response("Not found", { status: 404 });
   return new Response(asset.data as BodyInit, {
     headers: {
