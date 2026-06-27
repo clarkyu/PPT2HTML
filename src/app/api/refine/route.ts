@@ -16,7 +16,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  if (!rateLimit(`gen:${clientIp(req)}`, 30, 60_000)) {
+  // 独立限流桶（与 generate 的成本预算解耦，避免「同键不同 limit」）。
+  if (!rateLimit(`refine:${clientIp(req)}`, 30, 60_000)) {
     return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
   try {
@@ -31,8 +32,9 @@ export async function POST(req: Request) {
     return NextResponse.json({
       slide: {
         layout: draft.layout,
-        pedagogyRole: draft.pedagogyRole,
-        speakerNotes: draft.speakerNotes,
+        // 模型/Mock 未给则保留原页，避免静默清空教学法角色与备注。
+        pedagogyRole: draft.pedagogyRole ?? slide.pedagogyRole,
+        speakerNotes: draft.speakerNotes ?? slide.speakerNotes,
         blocks,
       },
     });

@@ -108,10 +108,9 @@ const INTERACTIVE_TYPES = new Set([
 function materializeBlock(b: DraftBlock): Block {
   const block = { ...b, id: createBlockId("b") } as Block;
   if (b.type === "quiz") {
-    (block as { questions: Array<{ id: string }> }).questions = b.questions.map((q) => ({
-      ...q,
-      id: createBlockId("b"),
-    }));
+    // 内嵌题同样注入 id，并归一 runtime（与顶层互动块一致，MVP 静态呈现）。
+    (block as { questions: Array<{ id: string; runtime: { live: boolean } }> }).questions =
+      b.questions.map((q) => ({ ...q, id: createBlockId("b"), runtime: { live: false } }));
   }
   if (INTERACTIVE_TYPES.has(b.type) && (block as { runtime?: unknown }).runtime === undefined) {
     (block as { runtime: { live: boolean } }).runtime = { live: false };

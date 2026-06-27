@@ -4,7 +4,7 @@
  * 课件编辑器（M3 · F5+F8）：模板切换 + 基础自定义（配色/字体/字号/校徽）+ 对话式精修 + 直接编辑
  * + 实时预览 + 保存。内容与渲染分离：改 templateId/theme 即时换肤；精修/直接编辑按页局部改写。
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -58,6 +58,11 @@ export function DeckEditor({
     return () => window.removeEventListener("beforeunload", h);
   }, [dirty]);
 
+  // 预热客户端渲染 chunk，首次编辑时已就绪，消除「渲染中…」闪烁。
+  useEffect(() => {
+    void import("./ClientSlideRenderer");
+  }, []);
+
   const total = slides.length;
   const flat = flattenSlides(deck);
   const current = flat[i];
@@ -96,17 +101,26 @@ export function DeckEditor({
   const markEdited = (slideId: string) =>
     setEditedSlides((s) => (s.has(slideId) ? s : new Set(s).add(slideId)));
 
+  // 结构化共享更新：仅克隆被改的那一页，其余 section/slide 复用引用，避免每次按键深克隆整份课件。
   const updateSlide = (slideId: string, fn: (s: Slide) => void) => {
-    patch((d) => {
-      for (const sec of d.sections) {
-        const sl = sec.slides.find((x) => x.id === slideId);
-        if (sl) {
-          fn(sl);
-          break;
-        }
-      }
-      return d;
-    });
+    setDeck((p) => ({
+      ...p,
+      sections: p.sections.map((sec) =>
+        sec.slides.some((s) => s.id === slideId)
+          ? {
+              ...sec,
+              slides: sec.slides.map((s) => {
+                if (s.id !== slideId) return s;
+                const c = structuredClone(s);
+                fn(c);
+                return c;
+              }),
+            }
+          : sec,
+      ),
+    }));
+    setDirty(true);
+    setMsg(null);
     markEdited(slideId);
   };
 
@@ -118,7 +132,7 @@ export function DeckEditor({
 
   // F8 对话式精修：对本页按一句话指令做局部改写（不触发整份重生成）。
   const applyRefine = async () => {
-    if (!current || refineText.trim().length < 2) return;
+    if (refining || !current || refineText.trim().length < 2) return;
     setRefining(true);
     setMsg(null);
     try {
@@ -248,7 +262,10 @@ export function DeckEditor({
                 value={refineText}
                 onChange={(e) => setRefineText(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") applyRefine();
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    applyRefine();
+                  }
                 }}
                 placeholder="例如：把这一页换成案例"
                 className="flex-1 rounded-lg border border-muted/30 bg-background p-2 text-sm"
@@ -490,12 +507,18 @@ function FieldArea({ label, value, onChange }: { label: string; value: string; o
 }
 
 function BulletEditor({ items, onChange }: { items: string[]; onChange: (fn: (b: Block) => void) => void }) {
+  // 稳定 key（与项一一对应、随增删 lockstep），避免下标 key 在删除/插入时焦点与值错位。
+  const keysRef = useRef<string[]>([]);
+  while (keysRef.current.length < items.length) keysRef.current.push(crypto.randomUUID());
+  if (keysRef.current.length > items.length) keysRef.current = keysRef.current.slice(0, items.length);
+  const keys = keysRef.current;
+
   return (
     <div>
       <span className="mb-1 block text-xs text-muted">列表</span>
       <div className="space-y-1.5">
         {items.map((it, j) => (
-          <div key={j} className="flex items-center gap-2">
+          <div key={keys[j]} className="flex items-center gap-2">
             <span className="text-muted">·</span>
             <input
               value={it}
@@ -505,9 +528,11 @@ function BulletEditor({ items, onChange }: { items: string[]; onChange: (fn: (b:
               className="flex-1 rounded border border-muted/20 bg-background px-2 py-1 text-sm"
             />
             <button
-              onClick={() =>
-                onChange((b) => void (b.type === "bulletList" && b.items.length > 1 && b.items.splice(j, 1)))
-              }
+              onClick={() => {
+                if (items.length <= 1) return;
+                keysRef.current.splice(j, 1); // 与数据同步删除，保持键-项对齐
+                onChange((b) => void (b.type === "bulletList" && b.items.splice(j, 1)));
+              }}
               disabled={items.length <= 1}
               className="px-1.5 text-xs text-muted hover:text-red-600 disabled:opacity-30"
               aria-label="删除项"

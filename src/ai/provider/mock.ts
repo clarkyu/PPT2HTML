@@ -7,6 +7,7 @@ import type { GradeLevel, Slide } from "@/schema/types";
 import type { OutlineParsed } from "@/schema/zod";
 import {
   intentCardSchema,
+  type DraftBlock,
   type DraftSection,
   type DraftSlide,
   type IntentCard,
@@ -262,12 +263,19 @@ export function synthRefine(slide: Slide, instruction: string): DraftSlide {
       ],
     };
   }
-  // 默认：保留标题，按指令补一条说明与要点
+  // 默认：未识别具体指令时不破坏原页——保留原内容（去 id，由 assembler 重新注入），仅追加一条说明。
   return {
     layout: slide.layout,
     pedagogyRole: slide.pedagogyRole,
-    speakerNotes: slide.speakerNotes,
-    blocks: [heading, { type: "text", text: `已按指令调整：${ins}` }, { type: "bulletList", items: ["要点一", "要点二", "要点三"] }],
+    speakerNotes: slide.speakerNotes?.slice(0, 2000),
+    blocks: [
+      ...slide.blocks.map((b) => {
+        const rest = { ...b } as Record<string, unknown>;
+        delete rest.id;
+        return rest as unknown as DraftBlock;
+      }),
+      { type: "text", text: `已按指令调整：${ins}` },
+    ],
   };
 }
 

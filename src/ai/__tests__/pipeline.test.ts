@@ -87,6 +87,24 @@ describe("生成流水线（Mock 模式）", () => {
     expect(blocks.every((b) => typeof b.id === "string" && b.id.length > 0)).toBe(true);
   });
 
+  it("精修：未识别关键词的指令保留原内容（不破坏整页）", async () => {
+    const slide: Slide = {
+      id: "s",
+      layout: "single",
+      blocks: [
+        { id: "h", type: "heading", level: 2, text: "原标题XYZ" },
+        { id: "t", type: "text", text: "原文本ABC" },
+      ],
+    };
+    const draft = await runRefine({ slide, instruction: "随便调整一下没有具体关键词" });
+    expect(draftSlideSchema.safeParse(draft).success).toBe(true);
+    const texts = draft.blocks
+      .map((b) => (b.type === "heading" || b.type === "text" ? b.text : ""))
+      .join("|");
+    expect(texts).toContain("原标题XYZ");
+    expect(texts).toContain("原文本ABC");
+  });
+
   it("pickTemplate：低龄→暖珊瑚，人文→学术绿，其余→经典蓝", async () => {
     expect(pickTemplate({ ...base(), gradeLevel: "primary" })).toBe("tpl-warm-coral");
     expect(pickTemplate({ ...base(), subject: "历史" })).toBe("tpl-academic-green");

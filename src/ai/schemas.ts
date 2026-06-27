@@ -8,6 +8,7 @@
 import { z } from "zod";
 import {
   bulletListBlockSchema,
+  checkSlideMcqBounds,
   codeBlockSchema,
   discussionWallBlockSchema,
   formulaBlockSchema,
@@ -77,12 +78,14 @@ export const draftBlockSchema = z.discriminatedUnion("type", [
 ]);
 export type DraftBlock = z.infer<typeof draftBlockSchema>;
 
-export const draftSlideSchema = z.object({
-  layout: slideLayoutSchema,
-  pedagogyRole: pedagogyRoleSchema.optional(),
-  speakerNotes: z.string().max(2000).optional(),
-  blocks: z.array(draftBlockSchema).min(1).max(20),
-});
+export const draftSlideSchema = z
+  .object({
+    layout: slideLayoutSchema,
+    pedagogyRole: pedagogyRoleSchema.optional(),
+    speakerNotes: z.string().max(2000).optional(),
+    blocks: z.array(draftBlockSchema).min(1).max(20),
+  })
+  .superRefine(checkSlideMcqBounds);
 export type DraftSlide = z.infer<typeof draftSlideSchema>;
 
 export const draftSectionSchema = z.object({
