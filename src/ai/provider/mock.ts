@@ -3,11 +3,13 @@
  * 使「一句话 → 意图 → 大纲 → 全文」整条闭环可跑通、可测试。
  * 产出贴近真实教学法结构（导入—讲解—举例—互动—小结），并通过对应 Zod schema 校验。
  */
-import type { GradeLevel } from "@/schema/types";
+import type { GradeLevel, Slide } from "@/schema/types";
 import type { OutlineParsed } from "@/schema/zod";
 import {
   intentCardSchema,
+  type DraftBlock,
   type DraftSection,
+  type DraftSlide,
   type IntentCard,
   type IntentField,
 } from "@/ai/schemas";
@@ -194,6 +196,89 @@ export function synthSection(
   return { title: sec.title, slides };
 }
 
+/** 离线精修：按指令关键词对单页做局部改写（保持「局部修改、不洗牌全篇」）。 */
+export function synthRefine(slide: Slide, instruction: string): DraftSlide {
+  const headingBlock = slide.blocks.find((b) => b.type === "heading");
+  const title = headingBlock && headingBlock.type === "heading" ? headingBlock.text : "本页";
+  const heading = { type: "heading" as const, level: 2 as const, text: title };
+  const ins = instruction;
+
+  if (/案例|例子|举例|case|example/i.test(ins)) {
+    return {
+      layout: "single",
+      pedagogyRole: "example",
+      speakerNotes: "结合案例讲解，引导学生分析。",
+      blocks: [
+        { type: "heading", level: 2, text: `案例：${title}` },
+        { type: "text", text: `下面用一个贴近学情的案例来说明「${title}」。` },
+        { type: "bulletList", items: ["背景与问题", "分析过程（关键步骤）", "结论与启示"] },
+      ],
+    };
+  }
+  if (/简化|精简|删减|短一点|更短/.test(ins)) {
+    const bullets = slide.blocks.find((b) => b.type === "bulletList");
+    const items = bullets && bullets.type === "bulletList" ? bullets.items.slice(0, 2) : ["要点一", "要点二"];
+    return { layout: "centered", pedagogyRole: slide.pedagogyRole, blocks: [heading, { type: "bulletList", items }] };
+  }
+  if (/测验|出题|练习|检测|小测|加.*题/.test(ins)) {
+    return {
+      layout: "single",
+      pedagogyRole: "interaction",
+      blocks: [
+        heading,
+        {
+          type: "mcq",
+          prompt: `关于「${title}」，下列哪一项正确？`,
+          options: ["正确项", "干扰项一", "干扰项二", "干扰项三"],
+          answerIndex: 0,
+          explanation: "回到本页核心要点即可判断。",
+          runtime: { live: false },
+        },
+      ],
+    };
+  }
+  if (/投票|讨论|互动/.test(ins)) {
+    return {
+      layout: "single",
+      pedagogyRole: "interaction",
+      blocks: [
+        heading,
+        {
+          type: "poll",
+          prompt: `关于「${title}」，你的看法是？`,
+          options: ["看法 A", "看法 B", "看法 C", "不确定"],
+          runtime: { live: false },
+        },
+      ],
+    };
+  }
+  if (/详细|展开|深入|丰富|补充/.test(ins)) {
+    return {
+      layout: "single",
+      pedagogyRole: slide.pedagogyRole,
+      blocks: [
+        heading,
+        { type: "text", text: `围绕「${title}」展开更详细的讲解：` },
+        { type: "bulletList", items: ["概念的精确定义", "适用条件与边界", "与相关概念的区别", "常见误区与纠正"] },
+      ],
+    };
+  }
+  // 默认：未识别具体指令时不破坏原页——保留原内容（去 id，由 assembler 重新注入），仅追加一条说明。
+  return {
+    layout: slide.layout,
+    pedagogyRole: slide.pedagogyRole,
+    speakerNotes: slide.speakerNotes?.slice(0, 2000),
+    blocks: [
+      ...slide.blocks.map((b) => {
+        const rest = { ...b } as Record<string, unknown>;
+        delete rest.id;
+        return rest as unknown as DraftBlock;
+      }),
+      { type: "text", text: `已按指令调整：${ins}` },
+    ],
+  };
+}
+
 export const mockProvider: LLMProvider = {
   name: "mock",
   async generateStructured<T>(args: StructuredArgs<T>): Promise<T> {
@@ -214,6 +299,11 @@ export const mockProvider: LLMProvider = {
       case "validate":
         result = { issues: [{ severity: "info", message: "由 Mock 生成，建议人工复核学科准确性与教材版本。" }] };
         break;
+      case "refine": {
+        const inp = mock.input as { slide: Slide; instruction: string };
+        result = synthRefine(inp.slide, inp.instruction);
+        break;
+      }
     }
     return schema.parse(result);
   },

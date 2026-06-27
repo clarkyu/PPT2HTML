@@ -1,8 +1,16 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { assembleDeck, pickTemplate, runIntent, runOutline, runSection } from "@/ai/pipeline";
-import { intentCardSchema } from "@/ai/schemas";
+import {
+  assembleDeck,
+  materializeBlocks,
+  pickTemplate,
+  runIntent,
+  runOutline,
+  runRefine,
+  runSection,
+} from "@/ai/pipeline";
+import { draftSlideSchema, intentCardSchema } from "@/ai/schemas";
 import { deckSchema } from "@/schema/zod";
-import type { Block } from "@/schema/types";
+import type { Block, Slide } from "@/schema/types";
 
 // 强制 Mock 模式（无 Key），保证测试确定性、与 CI 一致
 beforeEach(() => {
@@ -55,6 +63,46 @@ describe("生成流水线（Mock 模式）", () => {
       ["poll", "mcq", "trueFalse", "quiz"].includes(b.type),
     );
     expect(interactives.every((b) => "runtime" in b && b.runtime?.live === false)).toBe(true);
+  });
+
+  it("精修：指令「换成案例」产出合法草稿页；materializeBlocks 注入稳定 id", async () => {
+    const slide: Slide = {
+      id: "s1",
+      layout: "single",
+      blocks: [
+        { id: "h", type: "heading", level: 2, text: "二叉树遍历" },
+        { id: "t", type: "text", text: "前序/中序/后序。" },
+      ],
+    };
+    const draft = await runRefine({
+      subject: "信息技术",
+      gradeLevel: "higher",
+      slide,
+      instruction: "把这一页换成案例",
+    });
+    expect(draftSlideSchema.safeParse(draft).success).toBe(true);
+    expect(draft.pedagogyRole).toBe("example");
+    const blocks = materializeBlocks(draft.blocks);
+    expect(blocks.length).toBeGreaterThan(0);
+    expect(blocks.every((b) => typeof b.id === "string" && b.id.length > 0)).toBe(true);
+  });
+
+  it("精修：未识别关键词的指令保留原内容（不破坏整页）", async () => {
+    const slide: Slide = {
+      id: "s",
+      layout: "single",
+      blocks: [
+        { id: "h", type: "heading", level: 2, text: "原标题XYZ" },
+        { id: "t", type: "text", text: "原文本ABC" },
+      ],
+    };
+    const draft = await runRefine({ slide, instruction: "随便调整一下没有具体关键词" });
+    expect(draftSlideSchema.safeParse(draft).success).toBe(true);
+    const texts = draft.blocks
+      .map((b) => (b.type === "heading" || b.type === "text" ? b.text : ""))
+      .join("|");
+    expect(texts).toContain("原标题XYZ");
+    expect(texts).toContain("原文本ABC");
   });
 
   it("pickTemplate：低龄→暖珊瑚，人文→学术绿，其余→经典蓝", async () => {

@@ -1,15 +1,23 @@
 "use client";
 
 /**
- * 课件编辑器（M3-1 · F5）：模板切换 + 基础自定义（配色/字体/字号/校徽）+ 实时预览 + 保存。
- * 得益于内容与渲染分离，这里只改 templateId / theme，内容结构不变，预览即时反映。
+ * 课件编辑器（M3 · F5+F8）：模板切换 + 基础自定义（配色/字体/字号/校徽）+ 对话式精修 + 直接编辑
+ * + 实时预览 + 保存。内容与渲染分离：改 templateId/theme 即时换肤；精修/直接编辑按页局部改写。
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import type { ColorTokens, Deck, Template } from "@/schema/types";
+import type { Block, ColorTokens, Deck, Slide, Template } from "@/schema/types";
 import { ThemedSurface } from "@/renderer/ThemedSurface";
+import { flattenSlides } from "@/renderer/flatten";
 import { getTemplate } from "@/templates/registry";
+
+// 编辑后的页在客户端按状态重渲染；懒加载使 KaTeX 仅在需要时进入编辑器（不影响初始包/其它页）。
+const ClientSlideRenderer = dynamic(() => import("./ClientSlideRenderer"), {
+  ssr: false,
+  loading: () => <div className="p-6 text-sm text-muted">渲染中…</div>,
+});
 
 const FONT_OPTIONS = [
   { label: "无衬线", value: "ui-sans-serif, system-ui, 'PingFang SC', 'Microsoft YaHei', sans-serif" },
@@ -35,6 +43,9 @@ export function DeckEditor({
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [editedSlides, setEditedSlides] = useState<Set<string>>(new Set());
+  const [refineText, setRefineText] = useState("");
+  const [refining, setRefining] = useState(false);
 
   // 有未保存改动时，拦截刷新/关闭页面
   useEffect(() => {
@@ -47,7 +58,14 @@ export function DeckEditor({
     return () => window.removeEventListener("beforeunload", h);
   }, [dirty]);
 
+  // 预热客户端渲染 chunk，首次编辑时已就绪，消除「渲染中…」闪烁。
+  useEffect(() => {
+    void import("./ClientSlideRenderer");
+  }, []);
+
   const total = slides.length;
+  const flat = flattenSlides(deck);
+  const current = flat[i];
   const template = getTemplate(deck.templateId);
   const effColors: ColorTokens = { ...template.colors, ...(deck.theme?.colors ?? {}) };
   const effHeading = deck.theme?.fontFamily?.heading ?? template.fontFamily.heading;
@@ -79,6 +97,74 @@ export function DeckEditor({
       d.theme!.fontFamily = { ...(d.theme!.fontFamily ?? {}), [which]: v };
       return d;
     });
+
+  const markEdited = (slideId: string) =>
+    setEditedSlides((s) => (s.has(slideId) ? s : new Set(s).add(slideId)));
+
+  // 结构化共享更新：仅克隆被改的那一页，其余 section/slide 复用引用，避免每次按键深克隆整份课件。
+  const updateSlide = (slideId: string, fn: (s: Slide) => void) => {
+    setDeck((p) => ({
+      ...p,
+      sections: p.sections.map((sec) =>
+        sec.slides.some((s) => s.id === slideId)
+          ? {
+              ...sec,
+              slides: sec.slides.map((s) => {
+                if (s.id !== slideId) return s;
+                const c = structuredClone(s);
+                fn(c);
+                return c;
+              }),
+            }
+          : sec,
+      ),
+    }));
+    setDirty(true);
+    setMsg(null);
+    markEdited(slideId);
+  };
+
+  const updateBlock = (blockId: string, fn: (b: Block) => void) =>
+    updateSlide(current.slide.id, (s) => {
+      const b = s.blocks.find((x) => x.id === blockId);
+      if (b) fn(b);
+    });
+
+  // F8 对话式精修：对本页按一句话指令做局部改写（不触发整份重生成）。
+  const applyRefine = async () => {
+    if (refining || !current || refineText.trim().length < 2) return;
+    setRefining(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: deck.meta.subject,
+          gradeLevel: deck.meta.gradeLevel,
+          slide: current.slide,
+          instruction: refineText,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error((data as { error?: string }).error || "精修失败");
+      const ns = (data as {
+        slide: { layout: Slide["layout"]; pedagogyRole?: Slide["pedagogyRole"]; speakerNotes?: string; blocks: Block[] };
+      }).slide;
+      updateSlide(current.slide.id, (s) => {
+        s.layout = ns.layout;
+        s.pedagogyRole = ns.pedagogyRole;
+        s.speakerNotes = ns.speakerNotes;
+        s.blocks = ns.blocks;
+      });
+      setRefineText("");
+      setMsg("已精修本页 ✓");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "精修失败");
+    } finally {
+      setRefining(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -137,7 +223,12 @@ export function DeckEditor({
               <span>{sectionTitles[i]}</span>
             </div>
             <ThemedSurface deck={deck} className="min-h-[360px] p-6 sm:p-10">
-              {slides[i]}
+              {/* 已编辑的页在客户端按最新内容重渲染；未编辑的页用服务端预渲染节点（省 KaTeX 客户端包） */}
+              {current && editedSlides.has(current.slide.id) ? (
+                <ClientSlideRenderer slide={current.slide} />
+              ) : (
+                slides[i]
+              )}
             </ThemedSurface>
           </div>
           <div className="mt-3 flex items-center justify-center gap-4 text-sm">
@@ -159,6 +250,47 @@ export function DeckEditor({
               下一页
             </button>
           </div>
+
+          {/* AI 精修本页（F8） */}
+          <div className="mt-5 rounded-xl border border-muted/20 p-4">
+            <h2 className="text-sm font-semibold text-foreground/80">AI 精修本页</h2>
+            <p className="mt-1 text-xs text-muted">
+              一句话描述改动，如「把这一页换成案例」「加一道测验题」「精简要点」。仅改本页。
+            </p>
+            <div className="mt-2 flex gap-2">
+              <input
+                value={refineText}
+                onChange={(e) => setRefineText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    applyRefine();
+                  }
+                }}
+                placeholder="例如：把这一页换成案例"
+                className="flex-1 rounded-lg border border-muted/30 bg-background p-2 text-sm"
+              />
+              <button
+                onClick={applyRefine}
+                disabled={refining || refineText.trim().length < 2}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+              >
+                {refining ? "精修中…" : "应用"}
+              </button>
+            </div>
+          </div>
+
+          {/* 直接编辑本页文字（F8） */}
+          {current && (
+            <div className="mt-4 rounded-xl border border-muted/20 p-4">
+              <h2 className="text-sm font-semibold text-foreground/80">直接编辑本页文字</h2>
+              <div className="mt-3 space-y-3">
+                {current.slide.blocks.map((b) => (
+                  <BlockEditor key={b.id} block={b} onChange={(fn) => updateBlock(b.id, fn)} />
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* 控制面板 */}
@@ -296,5 +428,126 @@ function ColorRow({
         />
       </span>
     </label>
+  );
+}
+
+const BLOCK_TYPE_LABELS: Record<string, string> = {
+  image: "图片",
+  code: "代码",
+  table: "表格",
+  media: "音视频",
+  formula: "公式",
+  poll: "投票",
+  mcq: "选择题",
+  trueFalse: "判断题",
+  quiz: "测验",
+  discussionWall: "讨论墙",
+  wordCloud: "词云",
+};
+
+/** 直接编辑：文字类块可改文本，结构/媒体/互动块提示用 AI 精修。 */
+function BlockEditor({ block, onChange }: { block: Block; onChange: (fn: (b: Block) => void) => void }) {
+  if (block.type === "heading")
+    return (
+      <FieldInput
+        label={`标题 H${block.level}`}
+        value={block.text}
+        onChange={(v) => onChange((b) => void (b.type === "heading" && (b.text = v)))}
+      />
+    );
+  if (block.type === "text")
+    return (
+      <FieldArea
+        label="正文"
+        value={block.text}
+        onChange={(v) => onChange((b) => void (b.type === "text" && (b.text = v)))}
+      />
+    );
+  if (block.type === "quote")
+    return (
+      <FieldArea
+        label="引用"
+        value={block.text}
+        onChange={(v) => onChange((b) => void (b.type === "quote" && (b.text = v)))}
+      />
+    );
+  if (block.type === "bulletList") return <BulletEditor items={block.items} onChange={onChange} />;
+  return (
+    <div className="rounded-lg bg-surface px-3 py-2 text-xs text-muted">
+      {BLOCK_TYPE_LABELS[block.type] ?? block.type}（用上方「AI 精修」修改）
+    </div>
+  );
+}
+
+function FieldInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-muted">{label}</span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-muted/30 bg-background p-2 text-sm"
+      />
+    </label>
+  );
+}
+
+function FieldArea({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-muted">{label}</span>
+      <textarea
+        value={value}
+        rows={2}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-muted/30 bg-background p-2 text-sm"
+      />
+    </label>
+  );
+}
+
+function BulletEditor({ items, onChange }: { items: string[]; onChange: (fn: (b: Block) => void) => void }) {
+  // 稳定 key（与项一一对应、随增删 lockstep），避免下标 key 在删除/插入时焦点与值错位。
+  const keysRef = useRef<string[]>([]);
+  while (keysRef.current.length < items.length) keysRef.current.push(crypto.randomUUID());
+  if (keysRef.current.length > items.length) keysRef.current = keysRef.current.slice(0, items.length);
+  const keys = keysRef.current;
+
+  return (
+    <div>
+      <span className="mb-1 block text-xs text-muted">列表</span>
+      <div className="space-y-1.5">
+        {items.map((it, j) => (
+          <div key={keys[j]} className="flex items-center gap-2">
+            <span className="text-muted">·</span>
+            <input
+              value={it}
+              onChange={(e) =>
+                onChange((b) => void (b.type === "bulletList" && (b.items[j] = e.target.value)))
+              }
+              className="flex-1 rounded border border-muted/20 bg-background px-2 py-1 text-sm"
+            />
+            <button
+              onClick={() => {
+                if (items.length <= 1) return;
+                keysRef.current.splice(j, 1); // 与数据同步删除，保持键-项对齐
+                onChange((b) => void (b.type === "bulletList" && b.items.splice(j, 1)));
+              }}
+              disabled={items.length <= 1}
+              className="px-1.5 text-xs text-muted hover:text-red-600 disabled:opacity-30"
+              aria-label="删除项"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={() => onChange((b) => void (b.type === "bulletList" && b.items.push("新要点")))}
+        className="mt-1.5 text-xs text-primary hover:underline"
+      >
+        + 添加项
+      </button>
+    </div>
   );
 }

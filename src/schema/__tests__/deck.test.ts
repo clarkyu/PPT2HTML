@@ -38,6 +38,19 @@ describe("课件数据模型", () => {
     expect(deckSchema.safeParse(bad).success).toBe(false);
   });
 
+  it("拒绝越界的 mcq answerIndex（跨字段超精校验）", () => {
+    const bad = structuredClone(sampleDeck);
+    bad.sections[0].slides[0].blocks.push({
+      id: "x",
+      type: "mcq",
+      prompt: "q",
+      options: ["a", "b"],
+      answerIndex: 5,
+      runtime: { live: false },
+    });
+    expect(deckSchema.safeParse(bad).success).toBe(false);
+  });
+
   it("theme.logoUrl 走媒体白名单：拒绝 javascript:，放行 https", () => {
     const ok = structuredClone(sampleDeck);
     ok.theme = { logoUrl: "https://example.com/logo.png" };

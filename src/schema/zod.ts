@@ -66,13 +66,13 @@ export const headingBlockSchema = z.object({
   ...blockBase,
   type: z.literal("heading"),
   level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-  text: z.string(),
+  text: z.string().max(500),
 });
 
 export const textBlockSchema = z.object({
   ...blockBase,
   type: z.literal("text"),
-  text: z.string(),
+  text: z.string().max(5000),
   emphasis: z.boolean().optional(),
 });
 
@@ -94,15 +94,15 @@ export const imageBlockSchema = z.object({
 export const codeBlockSchema = z.object({
   ...blockBase,
   type: z.literal("code"),
-  language: z.string(),
-  code: z.string(),
+  language: z.string().max(50),
+  code: z.string().max(20000),
 });
 
 export const quoteBlockSchema = z.object({
   ...blockBase,
   type: z.literal("quote"),
-  text: z.string(),
-  cite: z.string().optional(),
+  text: z.string().max(5000),
+  cite: z.string().max(200).optional(),
 });
 
 export const tableBlockSchema = z.object({
@@ -122,7 +122,7 @@ export const mediaBlockSchema = z.object({
 export const formulaBlockSchema = z.object({
   ...blockBase,
   type: z.literal("formula"),
-  latex: z.string(),
+  latex: z.string().max(4000),
 });
 
 export const contentBlockSchema = z.discriminatedUnion("type", [
@@ -207,17 +207,18 @@ export const blockSchema = z.union([contentBlockSchema, interactiveBlockSchema])
 export const slideSchema = z.object({
   id: z.string().min(1),
   layout: slideLayoutSchema,
-  blocks: z.array(blockSchema),
-  speakerNotes: z.string().optional(),
+  blocks: z.array(blockSchema).max(50),
+  // 与 draftSlideSchema.speakerNotes 上限对齐，避免「入站合法但精修产物校验不过」的非对称
+  speakerNotes: z.string().max(2000).optional(),
   transition: slideTransitionSchema.optional(),
   pedagogyRole: pedagogyRoleSchema.optional(),
 });
 
 export const sectionSchema = z.object({
   id: z.string().min(1),
-  title: z.string(),
-  summary: z.string().optional(),
-  slides: z.array(slideSchema),
+  title: z.string().max(200),
+  summary: z.string().max(2000).optional(),
+  slides: z.array(slideSchema).max(50),
 });
 
 export const deckMetaSchema = z.object({
@@ -256,10 +257,10 @@ export const deckSchema = z.object({
       logoUrl: safeMediaSrc.optional(), // 校徽作为 <img src> 渲染，复用媒体白名单（https/相对/data:image）
     })
     .optional(),
-  sections: z.array(sectionSchema),
+  sections: z.array(sectionSchema).max(50),
   createdAt: z.string(),
   updatedAt: z.string(),
-});
+}).superRefine(checkMcqBounds);
 
 // 大纲（生成流水线 M2 用，轻量结构）
 export const outlineSchema = z.object({
@@ -277,3 +278,58 @@ export const outlineSchema = z.object({
 
 export type DeckParsed = z.infer<typeof deckSchema>;
 export type OutlineParsed = z.infer<typeof outlineSchema>;
+
+// ===== 跨字段校验：mcq/quiz 的 answerIndex 不得越界 =====
+// 不直接给 *BlockSchema 挂 refine（它们要被 discriminatedUnion 与 .omit/.extend 复用），
+// 而在聚合边界（Deck / 草稿页）统一做超精校验。
+
+function addMcqBoundIssues(blocks: readonly unknown[], ctx: z.RefinementCtx, base: (string | number)[]) {
+  blocks.forEach((blk, bi) => {
+    const b = blk as { type?: string; options?: unknown[]; answerIndex?: number; questions?: unknown[] };
+    if (
+      b.type === "mcq" &&
+      Array.isArray(b.options) &&
+      typeof b.answerIndex === "number" &&
+      b.answerIndex >= b.options.length
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "answerIndex 超出 options 范围",
+        path: [...base, bi, "answerIndex"],
+      });
+    }
+    if (b.type === "quiz" && Array.isArray(b.questions)) {
+      b.questions.forEach((qq, qi) => {
+        const q = qq as { options?: unknown[]; answerIndex?: number };
+        if (
+          Array.isArray(q.options) &&
+          typeof q.answerIndex === "number" &&
+          q.answerIndex >= q.options.length
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "quiz answerIndex 超出 options 范围",
+            path: [...base, bi, "questions", qi, "answerIndex"],
+          });
+        }
+      });
+    }
+  });
+}
+
+/** 用于 deckSchema.superRefine：遍历全 deck 校验 mcq/quiz 答案下标。 */
+export function checkMcqBounds(
+  deck: { sections: ReadonlyArray<{ slides: ReadonlyArray<{ blocks: readonly unknown[] }> }> },
+  ctx: z.RefinementCtx,
+) {
+  deck.sections.forEach((s, si) =>
+    s.slides.forEach((sl, li) =>
+      addMcqBoundIssues(sl.blocks, ctx, ["sections", si, "slides", li, "blocks"]),
+    ),
+  );
+}
+
+/** 用于 draftSlideSchema.superRefine：校验单页（精修产出）的 mcq/quiz 答案下标。 */
+export function checkSlideMcqBounds(slide: { blocks: readonly unknown[] }, ctx: z.RefinementCtx) {
+  addMcqBoundIssues(slide.blocks, ctx, ["blocks"]);
+}

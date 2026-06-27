@@ -2,20 +2,28 @@
  * 生成流水线：意图解析 → 教学设计(大纲) → 内容生成(逐节) → 校验，以及把草稿组装为 Deck。
  * 每步走 Provider 抽象层（有 Key 真实模型，无 Key 离线 Mock），产出经 Zod 校验。
  */
-import type { Block, Deck, GradeLevel, Section } from "@/schema/types";
+import type { Block, Deck, GradeLevel, Section, Slide } from "@/schema/types";
 import { createBlockId } from "@/schema/factory";
 import { outlineSchema, type OutlineParsed } from "@/schema/zod";
 import { getProvider } from "@/ai/provider";
 import {
   draftSectionSchema,
+  draftSlideSchema,
   intentCardSchema,
   validationSchema,
   type DraftBlock,
   type DraftSection,
+  type DraftSlide,
   type IntentCard,
   type Validation,
 } from "@/ai/schemas";
-import { INTENT_SYSTEM, OUTLINE_SYSTEM, SECTION_SYSTEM, VALIDATE_SYSTEM } from "@/ai/prompts";
+import {
+  INTENT_SYSTEM,
+  OUTLINE_SYSTEM,
+  REFINE_SYSTEM,
+  SECTION_SYSTEM,
+  VALIDATE_SYSTEM,
+} from "@/ai/prompts";
 
 export async function runIntent(sentence: string): Promise<IntentCard> {
   return getProvider().generateStructured({
@@ -52,6 +60,22 @@ export async function runSection(
   });
 }
 
+/** 对话式精修（F8）：对单页按自然语言指令做局部改写，不触发整份重生成。 */
+export async function runRefine(args: {
+  subject?: string;
+  gradeLevel?: GradeLevel;
+  slide: Slide;
+  instruction: string;
+}): Promise<DraftSlide> {
+  return getProvider().generateStructured({
+    system: REFINE_SYSTEM,
+    user: `学科：${args.subject ?? "未指定"}；学段：${args.gradeLevel ?? "未指定"}\n当前页 JSON：${JSON.stringify(args.slide)}\n修改指令：${args.instruction}`,
+    schema: draftSlideSchema,
+    tier: "standard",
+    mock: { key: "refine", input: { slide: args.slide, instruction: args.instruction } },
+  });
+}
+
 export async function runValidate(deck: Deck): Promise<Validation> {
   return getProvider().generateStructured({
     system: VALIDATE_SYSTEM,
@@ -84,15 +108,19 @@ const INTERACTIVE_TYPES = new Set([
 function materializeBlock(b: DraftBlock): Block {
   const block = { ...b, id: createBlockId("b") } as Block;
   if (b.type === "quiz") {
-    (block as { questions: Array<{ id: string }> }).questions = b.questions.map((q) => ({
-      ...q,
-      id: createBlockId("b"),
-    }));
+    // 内嵌题同样注入 id，并归一 runtime（与顶层互动块一致，MVP 静态呈现）。
+    (block as { questions: Array<{ id: string; runtime: { live: boolean } }> }).questions =
+      b.questions.map((q) => ({ ...q, id: createBlockId("b"), runtime: { live: false } }));
   }
   if (INTERACTIVE_TYPES.has(b.type) && (block as { runtime?: unknown }).runtime === undefined) {
     (block as { runtime: { live: boolean } }).runtime = { live: false };
   }
   return block;
+}
+
+/** 给一组草稿块注入稳定 id（含 quiz 内嵌题、互动块 runtime 归一），用于精修等局部替换。 */
+export function materializeBlocks(drafts: DraftBlock[]): Block[] {
+  return drafts.map(materializeBlock);
 }
 
 /** 把逐节草稿组装为完整 Deck，并注入稳定 id。 */
