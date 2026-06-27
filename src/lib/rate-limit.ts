@@ -17,8 +17,15 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
   return true;
 }
 
+/**
+ * 取限流标识。X-Forwarded-For 可被客户端伪造，默认不信任；仅当上游反代强制重写并设
+ * TRUST_PROXY_XFF=1 时才采用其首段。否则回退到平台注入的 x-real-ip，再到 "anon"。
+ * 真正生产防护应在 M5 随网关/Redis 限流落地（见本文件顶部说明）。
+ */
 export function clientIp(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
+  if (process.env.TRUST_PROXY_XFF === "1") {
+    const xff = req.headers.get("x-forwarded-for");
+    if (xff) return xff.split(",")[0]!.trim();
+  }
   return req.headers.get("x-real-ip") ?? "anon";
 }

@@ -14,19 +14,18 @@ import type {
 } from "@/schema/types";
 
 export function Heading({ block }: { block: HeadingBlock }) {
-  // xl: 台阶为教室投影/大屏放大字号，保证后排可读（M1 出口标准：全屏授课可读）。
-  const cls = "font-heading font-bold text-foreground";
-  if (block.level === 1)
-    return <h1 className={`${cls} text-3xl sm:text-4xl lg:text-5xl xl:text-6xl`}>{block.text}</h1>;
-  if (block.level === 2)
-    return <h2 className={`${cls} text-2xl sm:text-3xl xl:text-4xl`}>{block.text}</h2>;
-  return <h3 className={`${cls} text-xl sm:text-2xl xl:text-3xl`}>{block.text}</h3>;
+  // 字号用 em，相对渲染容器基准（--slide-base × --font-scale）缩放：
+  // 既支持用户字号自定义，也由播放器按视口放大基准以适配投影大屏。
+  const cls = "font-heading font-bold leading-tight text-foreground";
+  if (block.level === 1) return <h1 className={`${cls} text-[2.4em]`}>{block.text}</h1>;
+  if (block.level === 2) return <h2 className={`${cls} text-[1.7em]`}>{block.text}</h2>;
+  return <h3 className={`${cls} text-[1.35em]`}>{block.text}</h3>;
 }
 
 export function Text({ block }: { block: TextBlock }) {
   return (
     <p
-      className={`leading-relaxed text-foreground/90 text-base sm:text-lg xl:text-xl ${
+      className={`text-[1.05em] leading-relaxed text-foreground/90 ${
         block.emphasis ? "font-semibold text-primary" : ""
       }`}
     >
@@ -39,7 +38,7 @@ export function BulletList({ block }: { block: BulletListBlock }) {
   const Tag = block.ordered ? "ol" : "ul";
   return (
     <Tag
-      className={`space-y-2 text-base sm:text-lg xl:text-xl text-foreground/90 ${
+      className={`space-y-2 text-[1.05em] text-foreground/90 ${
         block.ordered ? "list-decimal" : "list-disc"
       } pl-6 marker:text-primary`}
     >
@@ -73,7 +72,7 @@ export function Code({ block }: { block: CodeBlock }) {
       <div className="border-b border-muted/20 px-4 py-1.5 text-xs text-muted">
         {block.language || "code"}
       </div>
-      <pre className="overflow-x-auto p-4 text-sm">
+      <pre className="overflow-x-auto p-4 text-[0.85em]">
         <code className="font-mono text-foreground/90">{block.code}</code>
       </pre>
     </div>
@@ -83,8 +82,8 @@ export function Code({ block }: { block: CodeBlock }) {
 export function Quote({ block }: { block: QuoteBlock }) {
   return (
     <blockquote className="border-l-4 border-primary bg-surface/60 px-4 py-3 italic text-foreground/90">
-      <p className="text-base sm:text-lg xl:text-xl">{block.text}</p>
-      {block.cite && <cite className="mt-1 block text-sm not-italic text-muted">— {block.cite}</cite>}
+      <p className="text-[1.05em]">{block.text}</p>
+      {block.cite && <cite className="mt-1 block text-[0.85em] not-italic text-muted">— {block.cite}</cite>}
     </blockquote>
   );
 }
@@ -92,7 +91,7 @@ export function Quote({ block }: { block: QuoteBlock }) {
 export function Table({ block }: { block: TableBlock }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-left text-sm sm:text-base">
+      <table className="w-full border-collapse text-left text-[0.95em]">
         <thead>
           <tr>
             {block.headers.map((h, i) => (

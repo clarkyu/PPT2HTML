@@ -17,6 +17,8 @@ export interface PlayerProps {
   slides: React.ReactNode[];
   notes: (string | undefined)[];
   sectionTitles: string[];
+  /** 校徽/个人标识（来自 deck.theme.logoUrl） */
+  logoUrl?: string;
 }
 
 function fmt(sec: number): string {
@@ -33,7 +35,15 @@ function isInteractiveTarget(el: EventTarget | null): boolean {
   );
 }
 
-export function Player({ title, deckId, themeVars, slides, notes, sectionTitles }: PlayerProps) {
+export function Player({
+  title,
+  deckId,
+  themeVars,
+  slides,
+  notes,
+  sectionTitles,
+  logoUrl,
+}: PlayerProps) {
   const total = slides.length;
   const [index, setIndex] = useState(0);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -147,6 +157,17 @@ export function Player({ title, deckId, themeVars, slides, notes, sectionTitles 
         <Link href={`/deck/${deckId}`} className="rounded px-2 py-1 hover:bg-white/10" aria-label="退出播放">
           ← 退出
         </Link>
+        {logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl}
+            alt=""
+            className="h-6 w-6 shrink-0 rounded object-contain"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        )}
         <span className="truncate font-medium">{title}</span>
         <span className="ml-auto tabular-nums text-white/70">{sectionTitles[index]}</span>
         <button
@@ -178,7 +199,7 @@ export function Player({ title, deckId, themeVars, slides, notes, sectionTitles 
       >
         <div
           style={{ ...themeVars, fontFamily: "var(--font-body)" }}
-          className="mx-auto flex h-full w-full max-w-6xl cursor-pointer overflow-auto rounded-xl bg-background p-6 text-foreground shadow-2xl sm:p-10"
+          className="mx-auto flex h-full w-full max-w-6xl cursor-pointer overflow-auto rounded-xl bg-background p-6 text-foreground shadow-2xl sm:p-10 [--slide-base:1rem] xl:[--slide-base:1.35rem] 2xl:[--slide-base:1.6rem]"
         >
           <div
             className="flex min-h-full w-full"

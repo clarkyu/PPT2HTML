@@ -34,7 +34,7 @@ function InteractiveShell({
         <p className="font-semibold text-foreground">{prompt}</p>
       </div>
       {children}
-      <p className="text-xs text-muted">{hint}</p>
+      <p className="text-[0.8em] text-muted">{hint}</p>
     </div>
   );
 }
@@ -79,13 +79,13 @@ export function Mcq({ block, reveal = false }: { block: McqBlock; reveal?: boole
                 {letter(i)}
               </span>
               <span className="text-foreground/90">{opt}</span>
-              {correct && <span className="ml-auto text-sm font-medium text-primary">✓ 参考答案</span>}
+              {correct && <span className="ml-auto text-[0.9em] font-medium text-primary">✓ 参考答案</span>}
             </li>
           );
         })}
       </ul>
       {reveal && block.explanation && (
-        <p className="text-sm text-muted">
+        <p className="text-[0.9em] text-muted">
           <span className="font-medium text-foreground/80">解析：</span>
           {block.explanation}
         </p>
@@ -118,7 +118,7 @@ export function TrueFalse({ block, reveal = false }: { block: TrueFalseBlock; re
         })}
       </div>
       {reveal && block.explanation && (
-        <p className="text-sm text-muted">
+        <p className="text-[0.9em] text-muted">
           <span className="font-medium text-foreground/80">解析：</span>
           {block.explanation}
         </p>
@@ -139,7 +139,7 @@ export function Quiz({ block, reveal = false }: { block: QuizBlock; reveal?: boo
             <p className="mb-2 font-medium text-foreground">
               {i + 1}. {q.prompt}
             </p>
-            <ul className="space-y-1 text-sm">
+            <ul className="space-y-1 text-[0.9em]">
               {q.options.map((opt, oi) => {
                 const correct = reveal && oi === q.answerIndex;
                 return (
@@ -163,7 +163,7 @@ export function DiscussionWall({ block }: { block: DiscussionWallBlock }) {
       prompt={block.prompt}
       badge={block.mode === "danmu" ? "讨论墙 · 弹幕" : "讨论墙 · 列表"}
     >
-      <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-muted/40 bg-background/50 text-sm text-muted">
+      <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-muted/40 bg-background/50 text-[0.9em] text-muted">
         学生留言将实时显示于此（Phase 2）
       </div>
     </InteractiveShell>
@@ -173,7 +173,7 @@ export function DiscussionWall({ block }: { block: DiscussionWallBlock }) {
 export function WordCloud({ block }: { block: WordCloudBlock }) {
   return (
     <InteractiveShell prompt={block.prompt} badge="词云">
-      <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-muted/40 bg-background/50 text-sm text-muted">
+      <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-muted/40 bg-background/50 text-[0.9em] text-muted">
         学生提交的关键词将聚合为词云（Phase 2）
       </div>
     </InteractiveShell>

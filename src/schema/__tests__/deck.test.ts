@@ -28,4 +28,22 @@ describe("课件数据模型", () => {
     const b = createBlockId();
     expect(a).not.toBe(b);
   });
+
+  it("theme.fontScale 越界被拒，合理值通过", () => {
+    const ok = structuredClone(sampleDeck);
+    ok.theme = { fontScale: 1.4 };
+    expect(deckSchema.safeParse(ok).success).toBe(true);
+    const bad = structuredClone(sampleDeck);
+    bad.theme = { fontScale: 50 };
+    expect(deckSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("theme.logoUrl 走媒体白名单：拒绝 javascript:，放行 https", () => {
+    const ok = structuredClone(sampleDeck);
+    ok.theme = { logoUrl: "https://example.com/logo.png" };
+    expect(deckSchema.safeParse(ok).success).toBe(true);
+    const bad = structuredClone(sampleDeck);
+    bad.theme = { logoUrl: "javascript:alert(1)" };
+    expect(deckSchema.safeParse(bad).success).toBe(false);
+  });
 });
