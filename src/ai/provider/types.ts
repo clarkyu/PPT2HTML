@@ -1,43 +1,37 @@
 /**
- * LLM Provider 抽象层（骨架）
+ * LLM Provider 抽象层
  *
- * 目标（见 docs/04-ai-pipeline.md）：
- *  - 默认国产模型、合规可控；按任务分级路由；不绑定厂商。
- *  - generateStructured 强制产出贴合课件 Schema 的合规 JSON。
+ * 目标（docs/04-ai-pipeline.md）：默认国产模型、合规可控；按任务分级路由；不绑定厂商。
+ * generateStructured 强制产出贴合 Zod schema 的合规对象（解析+校验+一次修复重试）。
  *
- * 具体 Provider 实现（DeepSeek / 通义 / GLM / Claude / OpenAI）落地于同目录。
+ * 每次调用同时携带：
+ *  - system/user/schema：真实模型据此生成；
+ *  - mock：无 Key（离线/CI）时由 MockProvider 据此确定性合成，保证全流程可跑通。
  */
+import type { ZodType } from "zod";
 
 export type ModelTier = "light" | "standard" | "heavy";
 
-export interface StructuredArgs {
-  system: string;
-  prompt: string;
-  /** 由 Zod schema 转换得到的 JSON Schema，约束模型产出 */
-  jsonSchema: unknown;
-  tier: ModelTier;
+/** Mock 合成配方：key 决定合成什么，input 提供素材。真实 Provider 忽略它。 */
+export interface MockRecipe {
+  key: "intent" | "outline" | "section" | "validate";
+  input: unknown;
 }
 
-export interface TextArgs {
+export interface StructuredArgs<T> {
   system: string;
-  prompt: string;
+  user: string;
+  schema: ZodType<T>;
   tier: ModelTier;
+  mock: MockRecipe;
 }
 
 export interface LLMProvider {
   readonly name: string;
-  generateStructured<T>(args: StructuredArgs): Promise<T>;
-  generateText(args: TextArgs): Promise<string>;
-  /** 流式：内容生成按节增量返回，前端边收边渲染 */
-  streamText?(args: TextArgs): AsyncIterable<string>;
+  generateStructured<T>(args: StructuredArgs<T>): Promise<T>;
 }
 
-/**
- * 模型路由表：把任务档位映射到具体模型名（来自环境变量）。
- * light    → 意图解析、大纲（秒级，快而省）
- * standard → 版式、校验、精修
- * heavy    → 全文内容生成（最强模型）
- */
+/** 模型路由表：任务档位 → 具体模型名（来自环境变量）。 */
 export interface ModelRouting {
   provider: string;
   models: Record<ModelTier, string>;
