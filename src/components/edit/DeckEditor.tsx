@@ -4,13 +4,11 @@
  * 课件编辑器（M3-1 · F5）：模板切换 + 基础自定义（配色/字体/字号/校徽）+ 实时预览 + 保存。
  * 得益于内容与渲染分离，这里只改 templateId / theme，内容结构不变，预览即时反映。
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { ColorTokens, Deck, Template } from "@/schema/types";
 import { ThemedSurface } from "@/renderer/ThemedSurface";
-import { SlideRenderer } from "@/renderer/SlideRenderer";
-import { flattenSlides } from "@/renderer/flatten";
 import { getTemplate } from "@/templates/registry";
 
 const FONT_OPTIONS = [
@@ -20,7 +18,17 @@ const FONT_OPTIONS = [
   { label: "等宽", value: "ui-monospace, 'SFMono-Regular', Menlo, monospace" },
 ];
 
-export function DeckEditor({ deck: initial, templates }: { deck: Deck; templates: Template[] }) {
+export function DeckEditor({
+  deck: initial,
+  templates,
+  slides,
+  sectionTitles,
+}: {
+  deck: Deck;
+  templates: Template[];
+  slides: React.ReactNode[];
+  sectionTitles: string[];
+}) {
   const router = useRouter();
   const [deck, setDeck] = useState<Deck>(initial);
   const [i, setI] = useState(0);
@@ -28,12 +36,30 @@ export function DeckEditor({ deck: initial, templates }: { deck: Deck; templates
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const flat = flattenSlides(deck);
+  // 有未保存改动时，拦截刷新/关闭页面
+  useEffect(() => {
+    if (!dirty) return;
+    const h = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [dirty]);
+
+  const total = slides.length;
   const template = getTemplate(deck.templateId);
   const effColors: ColorTokens = { ...template.colors, ...(deck.theme?.colors ?? {}) };
   const effHeading = deck.theme?.fontFamily?.heading ?? template.fontFamily.heading;
   const effBody = deck.theme?.fontFamily?.body ?? template.fontFamily.body;
   const fontScale = deck.theme?.fontScale ?? 1;
+  // 自定义字体可能不在预设选项内：补一个「自定义」项，避免 select 静默显示错项。
+  const headingOpts = FONT_OPTIONS.some((f) => f.value === effHeading)
+    ? FONT_OPTIONS
+    : [...FONT_OPTIONS, { label: "自定义", value: effHeading }];
+  const bodyOpts = FONT_OPTIONS.some((f) => f.value === effBody)
+    ? FONT_OPTIONS
+    : [...FONT_OPTIONS, { label: "自定义", value: effBody }];
 
   const patch = (fn: (d: Deck) => Deck) => {
     setDeck((p) => fn(structuredClone(p)));
@@ -65,6 +91,9 @@ export function DeckEditor({ deck: initial, templates }: { deck: Deck; templates
       });
       const data = await res.json();
       if (!res.ok) throw new Error((data as { error?: string }).error || "保存失败");
+      // 用服务端自增后的 version 更新本地，避免连续保存触发乐观锁 409。
+      const v = (data as { version?: number }).version;
+      if (typeof v === "number") setDeck((p) => ({ ...p, version: v }));
       setDirty(false);
       setMsg("已保存 ✓");
     } catch (e) {
@@ -73,8 +102,6 @@ export function DeckEditor({ deck: initial, templates }: { deck: Deck; templates
       setSaving(false);
     }
   };
-
-  const current = flat[i];
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
@@ -106,11 +133,11 @@ export function DeckEditor({ deck: initial, templates }: { deck: Deck; templates
         <section>
           <div className="overflow-hidden rounded-xl border border-muted/20 shadow-sm">
             <div className="flex items-center justify-between bg-surface px-3 py-1.5 text-xs text-muted">
-              <span>预览 · 第 {i + 1} / {flat.length} 页</span>
-              <span>{current?.sectionTitle}</span>
+              <span>预览 · 第 {i + 1} / {total} 页</span>
+              <span>{sectionTitles[i]}</span>
             </div>
             <ThemedSurface deck={deck} className="min-h-[360px] p-6 sm:p-10">
-              {current && <SlideRenderer slide={current.slide} reveal />}
+              {slides[i]}
             </ThemedSurface>
           </div>
           <div className="mt-3 flex items-center justify-center gap-4 text-sm">
@@ -122,11 +149,11 @@ export function DeckEditor({ deck: initial, templates }: { deck: Deck; templates
               上一页
             </button>
             <span className="tabular-nums text-muted">
-              {i + 1} / {flat.length}
+              {i + 1} / {total}
             </span>
             <button
-              onClick={() => setI((x) => Math.min(flat.length - 1, x + 1))}
-              disabled={i === flat.length - 1}
+              onClick={() => setI((x) => Math.min(total - 1, x + 1))}
+              disabled={i === total - 1}
               className="rounded px-3 py-1 hover:bg-surface disabled:opacity-30"
             >
               下一页
@@ -172,7 +199,7 @@ export function DeckEditor({ deck: initial, templates }: { deck: Deck; templates
                 onChange={(e) => setFont("heading", e.target.value)}
                 className="w-full rounded-lg border border-muted/30 bg-background p-2 text-sm"
               >
-                {FONT_OPTIONS.map((f) => (
+                {headingOpts.map((f) => (
                   <option key={f.label} value={f.value}>
                     {f.label}
                   </option>
@@ -187,7 +214,7 @@ export function DeckEditor({ deck: initial, templates }: { deck: Deck; templates
                 onChange={(e) => setFont("body", e.target.value)}
                 className="w-full rounded-lg border border-muted/30 bg-background p-2 text-sm"
               >
-                {FONT_OPTIONS.map((f) => (
+                {bodyOpts.map((f) => (
                   <option key={f.label} value={f.value}>
                     {f.label}
                   </option>

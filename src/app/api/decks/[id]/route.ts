@@ -19,7 +19,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 /** 保存对已有课件的编辑（模板/主题/内容）。整份 Deck 经 deckSchema 校验后落库。 */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!rateLimit(`edit:${clientIp(req)}`, 60, 60_000)) {
+  // 双桶：按客户端 + 按课件（后者不依赖可伪造的请求头，兜底单课件高频覆盖）。
+  if (!rateLimit(`edit:${clientIp(req)}`, 60, 60_000) || !rateLimit(`edit:deck:${id}`, 120, 60_000)) {
     return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
   try {
@@ -34,9 +35,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (parsed.data.id !== id) {
       return NextResponse.json({ error: "课件 id 不匹配" }, { status: 400 });
     }
-    const deck = { ...parsed.data, updatedAt: new Date().toISOString() } as Deck;
+    // 乐观锁：客户端 version 须与服务端当前一致，否则判为并发冲突。
+    if (parsed.data.version !== existing.version) {
+      return NextResponse.json({ error: "课件已被更新，请刷新后重试" }, { status: 409 });
+    }
+    // 服务端为权威：创建时间与来源不可被客户端改写，version 由服务端自增。
+    const deck: Deck = {
+      ...parsed.data,
+      createdAt: existing.createdAt,
+      meta: { ...parsed.data.meta, source: existing.meta.source },
+      version: existing.version + 1,
+      updatedAt: new Date().toISOString(),
+    };
     await saveDeck(deck);
-    return NextResponse.json({ id: deck.id });
+    return NextResponse.json({ id: deck.id, version: deck.version });
   } catch (e) {
     return errorResponse(e, "保存失败");
   }

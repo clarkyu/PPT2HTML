@@ -159,7 +159,14 @@ export function Player({
         </Link>
         {logoUrl && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt="" className="h-6 w-6 shrink-0 rounded object-contain" />
+          <img
+            src={logoUrl}
+            alt=""
+            className="h-6 w-6 shrink-0 rounded object-contain"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
         )}
         <span className="truncate font-medium">{title}</span>
         <span className="ml-auto tabular-nums text-white/70">{sectionTitles[index]}</span>

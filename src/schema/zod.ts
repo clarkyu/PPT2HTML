@@ -252,8 +252,8 @@ export const deckSchema = z.object({
       fontFamily: z
         .object({ heading: z.string().optional(), body: z.string().optional() })
         .optional(),
-      fontScale: z.number().positive().optional(),
-      logoUrl: z.string().optional(),
+      fontScale: z.number().min(0.5).max(2).optional(),
+      logoUrl: safeMediaSrc.optional(), // 校徽作为 <img src> 渲染，复用媒体白名单（https/相对/data:image）
     })
     .optional(),
   sections: z.array(sectionSchema),
