@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * 默认主题 token（模板会在运行时覆盖这些 CSS 变量）。
+ * 颜色以「R G B」空格分隔，配合 Tailwind 的 <alpha-value>。见 docs/03-data-model.md。
+ */
+:root {
+  --color-primary: 22 138 99;
+  --color-secondary: 71 85 105;
+  --color-accent: 234 179 8;
+  --color-background: 255 255 255;
+  --color-surface: 248 250 252;
+  --color-text: 15 23 42;
+  --color-muted: 100 116 139;
+
+  --font-heading: ui-sans-serif, system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-body: ui-sans-serif, system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+body {
+  background: rgb(var(--color-background));
+  color: rgb(var(--color-text));
+  font-family: var(--font-body);
+}
