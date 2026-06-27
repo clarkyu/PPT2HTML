@@ -24,6 +24,8 @@ export function createDeepSeekProvider(
             ? args.user
             : `${args.user}\n\n上一次输出无法通过校验，请严格只输出符合要求的 JSON。错误：${lastError}`;
 
+        // deepseek-reasoner 忽略采样参数，仅对 chat 类附带 temperature。
+        const isReasoner = model.startsWith("deepseek-reasoner");
         const res = await fetch(baseUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -34,7 +36,7 @@ export function createDeepSeekProvider(
               { role: "user", content: user },
             ],
             response_format: { type: "json_object" },
-            temperature: 0.6,
+            ...(isReasoner ? {} : { temperature: 0.6 }),
           }),
         });
 

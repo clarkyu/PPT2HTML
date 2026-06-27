@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { assembleDeck, pickTemplate, runIntent, runOutline, runSection } from "@/ai/pipeline";
 import { intentCardSchema } from "@/ai/schemas";
 import { deckSchema } from "@/schema/zod";
+import type { Block } from "@/schema/types";
 
 // 强制 Mock 模式（无 Key），保证测试确定性、与 CI 一致
 beforeEach(() => {
@@ -42,6 +43,18 @@ describe("生成流水线（Mock 模式）", () => {
     // 每个块都有 id
     const allBlocks = deck.sections.flatMap((s) => s.slides.flatMap((sl) => sl.blocks));
     expect(allBlocks.every((b) => typeof b.id === "string" && b.id.length > 0)).toBe(true);
+
+    // quiz 内嵌题也被注入了系统 id（递归 id 注入）
+    const quizzes = allBlocks.filter((b): b is Extract<Block, { type: "quiz" }> => b.type === "quiz");
+    expect(quizzes.length).toBeGreaterThan(0);
+    for (const q of quizzes) {
+      expect(q.questions.every((qq) => typeof qq.id === "string" && qq.id.length > 0)).toBe(true);
+    }
+    // 互动块统一带 runtime（mock/real 路径一致）
+    const interactives = allBlocks.filter((b) =>
+      ["poll", "mcq", "trueFalse", "quiz"].includes(b.type),
+    );
+    expect(interactives.every((b) => "runtime" in b && b.runtime?.live === false)).toBe(true);
   });
 
   it("pickTemplate：低龄→暖珊瑚，人文→学术绿，其余→经典蓝", async () => {

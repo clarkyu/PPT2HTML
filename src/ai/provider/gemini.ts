@@ -2,7 +2,14 @@
  * Gemini 适配（Google Generative Language 的 OpenAI 兼容端点）。配置 GEMINI_API_KEY 即启用
  * （并设 LLM_DEFAULT_PROVIDER=gemini）。用 JSON 模式产出结构化结果，按 Zod 校验，失败重试一次。
  */
-import { loadRoutingFromEnv, type LLMProvider, type ModelRouting, type StructuredArgs } from "./types";
+import {
+  loadRoutingFromEnv,
+  PROVIDER_DEFAULTS,
+  type LLMProvider,
+  type ModelRouting,
+  type ModelTier,
+  type StructuredArgs,
+} from "./types";
 
 const MAX_ATTEMPTS = 2;
 
@@ -12,10 +19,11 @@ export function createGeminiProvider(
   baseUrl: string = process.env.GEMINI_BASE_URL ??
     "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
 ): LLMProvider {
-  // 路由表里若仍是 deepseek-* 模型名，则回落到合理的 Gemini 模型。
-  const modelFor = (tier: keyof ModelRouting["models"]) => {
+  // 路由表里若仍是非 gemini 模型名（如沿用了 deepseek-* 默认），按档位回落到当前在线的
+  // Gemini 模型，保留分级路由，且不使用任何已停用的版本（如 gemini-1.5-*）。
+  const modelFor = (tier: ModelTier) => {
     const m = routing.models[tier];
-    return m.startsWith("gemini") ? m : "gemini-1.5-flash";
+    return m.startsWith("gemini") ? m : PROVIDER_DEFAULTS.gemini[tier];
   };
 
   return {

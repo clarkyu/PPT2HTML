@@ -10,6 +10,19 @@
  */
 import { z } from "zod";
 
+/**
+ * 媒体 src 白名单：仅允许 https、站内相对路径、data:image。
+ * 课件内容可能来自 LLM（用户一句话经模型产出）或 PPT 导入，渲染层会直接用作 <img>/<video> 的 src，
+ * 故在 schema 边界堵住 javascript:/不可信协议（同时作用于「LLM 产出校验」与「持久化前复校验」两条路径）。
+ */
+export const safeMediaSrc = z
+  .string()
+  .max(2048)
+  .refine(
+    (s) => /^https:\/\//i.test(s) || s.startsWith("/") || /^data:image\//i.test(s),
+    { message: "src 仅允许 https、站内相对路径或 data:image" },
+  );
+
 // ===== 枚举 =====
 
 export const gradeLevelSchema = z.enum([
@@ -67,13 +80,13 @@ export const bulletListBlockSchema = z.object({
   ...blockBase,
   type: z.literal("bulletList"),
   ordered: z.boolean().optional(),
-  items: z.array(z.string()),
+  items: z.array(z.string().max(2000)).max(50),
 });
 
 export const imageBlockSchema = z.object({
   ...blockBase,
   type: z.literal("image"),
-  src: z.string(),
+  src: safeMediaSrc,
   alt: z.string().optional(),
   caption: z.string().optional(),
 });
@@ -95,15 +108,15 @@ export const quoteBlockSchema = z.object({
 export const tableBlockSchema = z.object({
   ...blockBase,
   type: z.literal("table"),
-  headers: z.array(z.string()),
-  rows: z.array(z.array(z.string())),
+  headers: z.array(z.string().max(500)).max(20),
+  rows: z.array(z.array(z.string().max(2000)).max(20)).max(200),
 });
 
 export const mediaBlockSchema = z.object({
   ...blockBase,
   type: z.literal("media"),
   kind: z.enum(["video", "audio"]),
-  src: z.string(),
+  src: safeMediaSrc,
 });
 
 export const formulaBlockSchema = z.object({
@@ -140,14 +153,14 @@ const interactiveBase = {
 export const pollBlockSchema = z.object({
   ...interactiveBase,
   type: z.literal("poll"),
-  options: z.array(z.string()),
+  options: z.array(z.string().max(500)).max(20),
   multi: z.boolean().optional(),
 });
 
 export const mcqBlockSchema = z.object({
   ...interactiveBase,
   type: z.literal("mcq"),
-  options: z.array(z.string()),
+  options: z.array(z.string().max(500)).max(20),
   answerIndex: z.number().int().nonnegative(),
   explanation: z.string().optional(),
 });
@@ -162,7 +175,7 @@ export const trueFalseBlockSchema = z.object({
 export const quizBlockSchema = z.object({
   ...interactiveBase,
   type: z.literal("quiz"),
-  questions: z.array(mcqBlockSchema),
+  questions: z.array(mcqBlockSchema).max(50),
   timeLimitSec: z.number().int().positive().optional(),
 });
 
@@ -250,14 +263,16 @@ export const deckSchema = z.object({
 
 // 大纲（生成流水线 M2 用，轻量结构）
 export const outlineSchema = z.object({
-  title: z.string(),
-  sections: z.array(
-    z.object({
-      title: z.string(),
-      points: z.array(z.string()),
-      pedagogyRole: pedagogyRoleSchema.optional(),
-    }),
-  ),
+  title: z.string().max(200),
+  sections: z
+    .array(
+      z.object({
+        title: z.string().max(200),
+        points: z.array(z.string().max(1000)).max(20),
+        pedagogyRole: pedagogyRoleSchema.optional(),
+      }),
+    )
+    .max(30),
 });
 
 export type DeckParsed = z.infer<typeof deckSchema>;

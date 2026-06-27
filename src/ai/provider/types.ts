@@ -37,15 +37,27 @@ export interface ModelRouting {
   models: Record<ModelTier, string>;
 }
 
+// 各 Provider 的分级默认模型（仅在未显式配置 LLM_MODEL_* 时生效）。
+// 注意：使用当前在线的模型名，避免写死已停用的版本（如 gemini-1.5-*）。
+const PROVIDER_DEFAULTS: Record<string, Record<ModelTier, string>> = {
+  // DeepSeek 目前主力为 chat；reasoner 可由 LLM_MODEL_HEAVY 显式启用（见 deepseek 适配的 temperature 处理）。
+  deepseek: { light: "deepseek-chat", standard: "deepseek-chat", heavy: "deepseek-chat" },
+  gemini: { light: "gemini-2.5-flash-lite", standard: "gemini-2.5-flash", heavy: "gemini-2.5-pro" },
+};
+
 export function loadRoutingFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): ModelRouting {
+  const provider = env.LLM_DEFAULT_PROVIDER ?? "deepseek";
+  const d = PROVIDER_DEFAULTS[provider] ?? PROVIDER_DEFAULTS.deepseek;
   return {
-    provider: env.LLM_DEFAULT_PROVIDER ?? "deepseek",
+    provider,
     models: {
-      light: env.LLM_MODEL_LIGHT ?? "deepseek-chat",
-      standard: env.LLM_MODEL_STANDARD ?? "deepseek-chat",
-      heavy: env.LLM_MODEL_HEAVY ?? "deepseek-reasoner",
+      light: env.LLM_MODEL_LIGHT ?? d.light,
+      standard: env.LLM_MODEL_STANDARD ?? d.standard,
+      heavy: env.LLM_MODEL_HEAVY ?? d.heavy,
     },
   };
 }
+
+export { PROVIDER_DEFAULTS };

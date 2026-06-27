@@ -10,6 +10,7 @@ import {
   draftSectionSchema,
   intentCardSchema,
   validationSchema,
+  type DraftBlock,
   type DraftSection,
   type IntentCard,
   type Validation,
@@ -70,6 +71,30 @@ export function pickTemplate(intent: IntentCard): string {
   return "tpl-classic-blue";
 }
 
+const INTERACTIVE_TYPES = new Set([
+  "poll",
+  "mcq",
+  "trueFalse",
+  "quiz",
+  "discussionWall",
+  "wordCloud",
+]);
+
+/** 给草稿块注入稳定 id（含 quiz 内嵌题），并为互动块补默认 runtime（与 mock 路径一致）。 */
+function materializeBlock(b: DraftBlock): Block {
+  const block = { ...b, id: createBlockId("b") } as Block;
+  if (b.type === "quiz") {
+    (block as { questions: Array<{ id: string }> }).questions = b.questions.map((q) => ({
+      ...q,
+      id: createBlockId("b"),
+    }));
+  }
+  if (INTERACTIVE_TYPES.has(b.type) && (block as { runtime?: unknown }).runtime === undefined) {
+    (block as { runtime: { live: boolean } }).runtime = { live: false };
+  }
+  return block;
+}
+
 /** 把逐节草稿组装为完整 Deck，并注入稳定 id。 */
 export function assembleDeck(
   intent: IntentCard,
@@ -84,7 +109,7 @@ export function assembleDeck(
       layout: d.layout,
       pedagogyRole: d.pedagogyRole,
       speakerNotes: d.speakerNotes,
-      blocks: d.blocks.map((b) => ({ ...b, id: createBlockId("b") }) as Block),
+      blocks: d.blocks.map(materializeBlock),
     })),
   }));
 

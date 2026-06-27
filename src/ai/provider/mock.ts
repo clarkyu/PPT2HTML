@@ -150,11 +150,24 @@ export function synthSection(
     });
   } else if (role === "interaction") {
     baseBlocks.push({
-      type: "mcq",
-      prompt: `下列关于「${t}」的说法，哪一项最准确？`,
-      options: [`${t} 的核心要点（正确项）`, "以偏概全的说法", "张冠李戴的说法", "无关干扰项"],
-      answerIndex: 0,
-      explanation: "回到本节讲解的核心定义即可判断。",
+      type: "quiz",
+      prompt: `课堂小测：关于「${t}」`,
+      timeLimitSec: 120,
+      questions: [
+        {
+          type: "mcq",
+          prompt: `下列关于「${t}」的说法，哪一项最准确？`,
+          options: [`${t} 的核心要点（正确项）`, "以偏概全的说法", "张冠李戴的说法", "无关干扰项"],
+          answerIndex: 0,
+          explanation: "回到本节讲解的核心定义即可判断。",
+        },
+        {
+          type: "mcq",
+          prompt: `「${t}」最关键的作用是？`,
+          options: ["核心作用（正确项）", "次要作用", "无关作用", "尚未涉及"],
+          answerIndex: 0,
+        },
+      ],
       runtime: { live: false },
     });
   } else if (role === "summary") {

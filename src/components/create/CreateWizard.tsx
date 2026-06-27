@@ -4,7 +4,7 @@
  * 一句话生成向导（F1–F4）：一句话 → 意图卡片(可纠偏) → 大纲(可增删改调序) → 逐节生成 → 落库跳转。
  * 生成由服务端 API 驱动（有 Key 真实模型，无 Key 离线 Mock）。
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { GradeLevel } from "@/schema/types";
@@ -87,7 +87,14 @@ export function CreateWizard({ mock }: { mock: boolean }) {
 
   const confirmIntent = () =>
     run(async () => {
-      const { outline } = await postJSON<{ outline: OutlineParsed }>("/api/generate/outline", { intent });
+      // 收敛时长（输入框允许临时为空/NaN），确保提交给后端的意图合法。
+      const safeIntent = intent
+        ? { ...intent, durationMinutes: Math.max(5, Math.round(intent.durationMinutes || 40)) }
+        : intent;
+      if (safeIntent) setIntent(safeIntent);
+      const { outline } = await postJSON<{ outline: OutlineParsed }>("/api/generate/outline", {
+        intent: safeIntent,
+      });
       setOutline(outline);
       setStep("outline");
     });
@@ -202,8 +209,13 @@ export function CreateWizard({ mock }: { mock: boolean }) {
               <input
                 type="number"
                 min={5}
-                value={intent.durationMinutes}
-                onChange={(e) => setField("durationMinutes", Math.max(5, Number(e.target.value) || 0))}
+                value={Number.isFinite(intent.durationMinutes) ? intent.durationMinutes : ""}
+                onChange={(e) =>
+                  setField("durationMinutes", e.target.value === "" ? NaN : Number(e.target.value))
+                }
+                onBlur={(e) =>
+                  setField("durationMinutes", Math.max(5, Math.round(Number(e.target.value) || 5)))
+                }
                 className="w-full rounded-lg border border-muted/30 bg-background p-2"
               />
             </Field>
@@ -259,7 +271,25 @@ export function CreateWizard({ mock }: { mock: boolean }) {
               </div>
             </>
           )}
-          {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+          {error && !busy && (
+            <div className="mt-5 space-y-3">
+              <p className="text-sm text-red-600">{error}</p>
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={() => setStep("outline")}
+                  className="rounded-lg border border-muted/30 px-4 py-2 text-sm hover:bg-surface"
+                >
+                  返回大纲
+                </button>
+                <button
+                  onClick={generate}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                >
+                  重试
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       )}
     </main>
@@ -320,7 +350,44 @@ function OutlineEditor({
   onBack: () => void;
   onConfirm: () => void;
 }) {
+  // 为每节维护稳定 key，避免「以数组下标作 key」在调序/删除时丢焦点、复用受控输入。
+  const nextKey = useRef(outline.sections.length);
+  const [keys, setKeys] = useState<string[]>(() => outline.sections.map((_, i) => `s${i}`));
+
   const update = (fn: (o: OutlineParsed) => OutlineParsed) => setOutline(fn(structuredClone(outline)));
+
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= outline.sections.length) return;
+    update((o) => swap(o, i, j));
+    setKeys((k) => {
+      const n = [...k];
+      [n[i], n[j]] = [n[j], n[i]];
+      return n;
+    });
+  };
+
+  const removeSection = (i: number) => {
+    update((o) => {
+      o.sections.splice(i, 1);
+      return o;
+    });
+    setKeys((k) => k.filter((_, j) => j !== i));
+  };
+
+  const addSection = () => {
+    update((o) => {
+      o.sections.push({ title: "新的一节", points: ["要点一"], pedagogyRole: "explain" });
+      return o;
+    });
+    setKeys((k) => [...k, `s${nextKey.current++}`]);
+  };
+
+  const invalid =
+    outline.sections.length === 0 ||
+    outline.sections.some(
+      (s) => s.title.trim() === "" || s.points.length === 0 || s.points.every((p) => p.trim() === ""),
+    );
 
   return (
     <section className="mt-6 space-y-4">
@@ -331,7 +398,7 @@ function OutlineEditor({
 
       <div className="space-y-3">
         {outline.sections.map((sec, i) => (
-          <div key={i} className="rounded-xl border border-muted/20 bg-surface p-3">
+          <div key={keys[i] ?? i} className="rounded-xl border border-muted/20 bg-surface p-3">
             <div className="flex items-center gap-2">
               <input
                 value={sec.title}
@@ -344,7 +411,7 @@ function OutlineEditor({
                 className="flex-1 rounded border border-muted/30 bg-background px-2 py-1 font-medium"
               />
               <button
-                onClick={() => update((o) => (i > 0 ? swap(o, i, i - 1) : o))}
+                onClick={() => move(i, -1)}
                 disabled={i === 0}
                 className="px-1.5 text-muted hover:text-foreground disabled:opacity-30"
                 aria-label="上移"
@@ -352,7 +419,7 @@ function OutlineEditor({
                 ↑
               </button>
               <button
-                onClick={() => update((o) => (i < o.sections.length - 1 ? swap(o, i, i + 1) : o))}
+                onClick={() => move(i, 1)}
                 disabled={i === outline.sections.length - 1}
                 className="px-1.5 text-muted hover:text-foreground disabled:opacity-30"
                 aria-label="下移"
@@ -360,12 +427,7 @@ function OutlineEditor({
                 ↓
               </button>
               <button
-                onClick={() =>
-                  update((o) => {
-                    o.sections.splice(i, 1);
-                    return o;
-                  })
-                }
+                onClick={() => removeSection(i)}
                 className="px-1.5 text-muted hover:text-red-600"
                 aria-label="删除该节"
               >
@@ -393,7 +455,8 @@ function OutlineEditor({
                         return o;
                       })
                     }
-                    className="px-1.5 text-xs text-muted hover:text-red-600"
+                    disabled={sec.points.length <= 1}
+                    className="px-1.5 text-xs text-muted hover:text-red-600 disabled:opacity-30"
                     aria-label="删除要点"
                   >
                     ✕
@@ -417,16 +480,15 @@ function OutlineEditor({
       </div>
 
       <button
-        onClick={() =>
-          update((o) => {
-            o.sections.push({ title: "新的一节", points: ["要点一"], pedagogyRole: "explain" });
-            return o;
-          })
-        }
+        onClick={addSection}
         className="w-full rounded-lg border border-dashed border-muted/40 py-2 text-sm text-muted hover:text-foreground"
       >
         + 添加一节
       </button>
+
+      {invalid && (
+        <p className="text-xs text-red-600">每节需有标题，且至少保留一个非空要点。</p>
+      )}
 
       <div className="flex gap-3">
         <button onClick={onBack} className="rounded-lg border border-muted/30 px-4 py-2 text-sm hover:bg-surface">
@@ -434,7 +496,7 @@ function OutlineEditor({
         </button>
         <button
           onClick={onConfirm}
-          disabled={busy || outline.sections.length === 0}
+          disabled={busy || invalid}
           className="rounded-lg bg-primary px-5 py-2 font-medium text-white hover:opacity-90 disabled:opacity-40"
         >
           确认，生成全文

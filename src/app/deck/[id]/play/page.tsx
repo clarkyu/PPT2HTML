@@ -1,14 +1,13 @@
 import { notFound } from "next/navigation";
-import { getDeck, listDeckIds } from "@/lib/deck-store";
+import { getDeck } from "@/lib/deck-store";
 import { SlideRenderer } from "@/renderer/SlideRenderer";
 import { flattenSlides } from "@/renderer/flatten";
 import { getTemplate } from "@/templates/registry";
 import { buildThemeVars } from "@/templates/theme";
 import { Player } from "@/player/Player";
 
-export async function generateStaticParams() {
-  return (await listDeckIds()).map((id) => ({ id }));
-}
+// 同 /deck/[id]：运行时课件按请求动态渲染（见 deck-store 的过渡实现说明）。
+export const dynamic = "force-dynamic";
 
 export default async function PlayPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

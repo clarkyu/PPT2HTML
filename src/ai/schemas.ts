@@ -38,18 +38,25 @@ export const intentFieldSchema = z.enum([
 export type IntentField = z.infer<typeof intentFieldSchema>;
 
 export const intentCardSchema = z.object({
-  topic: z.string().min(1),
-  subject: z.string().min(1),
+  topic: z.string().min(1).max(200),
+  subject: z.string().min(1).max(50),
   gradeLevel: gradeLevelSchema,
-  durationMinutes: z.number().int().positive(),
-  style: z.string().min(1),
+  durationMinutes: z.number().int().positive().max(600),
+  style: z.string().min(1).max(50),
   /** 这些要素是系统替用户补全的（非用户明确给出），供前端「我替你补的」标注与一键纠偏。 */
-  filled: z.array(intentFieldSchema),
+  filled: z.array(intentFieldSchema).max(5),
 });
+
+/** 输入校验：一句话描述（路由层复用，限定长度防滥用）。 */
+export const sentenceInputSchema = z.string().trim().min(2).max(500);
 export type IntentCard = z.infer<typeof intentCardSchema>;
 
 // 草稿块 = deck 块去掉 id（id 由 assembler 注入）
 const dropId = { id: true } as const;
+
+// 内嵌题（quiz.questions）也需去 id：Zod .omit 是浅层的，故为草稿层单独定义。
+export const draftMcqSchema = mcqBlockSchema.omit(dropId);
+
 export const draftBlockSchema = z.discriminatedUnion("type", [
   headingBlockSchema.omit(dropId),
   textBlockSchema.omit(dropId),
@@ -63,7 +70,8 @@ export const draftBlockSchema = z.discriminatedUnion("type", [
   pollBlockSchema.omit(dropId),
   mcqBlockSchema.omit(dropId),
   trueFalseBlockSchema.omit(dropId),
-  quizBlockSchema.omit(dropId),
+  // quiz 草稿：内嵌题同样去 id
+  quizBlockSchema.omit(dropId).extend({ questions: z.array(draftMcqSchema).max(50) }),
   discussionWallBlockSchema.omit(dropId),
   wordCloudBlockSchema.omit(dropId),
 ]);
@@ -72,14 +80,14 @@ export type DraftBlock = z.infer<typeof draftBlockSchema>;
 export const draftSlideSchema = z.object({
   layout: slideLayoutSchema,
   pedagogyRole: pedagogyRoleSchema.optional(),
-  speakerNotes: z.string().optional(),
-  blocks: z.array(draftBlockSchema).min(1),
+  speakerNotes: z.string().max(2000).optional(),
+  blocks: z.array(draftBlockSchema).min(1).max(20),
 });
 export type DraftSlide = z.infer<typeof draftSlideSchema>;
 
 export const draftSectionSchema = z.object({
-  title: z.string().min(1),
-  slides: z.array(draftSlideSchema).min(1),
+  title: z.string().min(1).max(200),
+  slides: z.array(draftSlideSchema).min(1).max(30),
 });
 export type DraftSection = z.infer<typeof draftSectionSchema>;
 

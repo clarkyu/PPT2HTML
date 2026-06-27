@@ -1,14 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDeck, listDeckIds } from "@/lib/deck-store";
+import { getDeck } from "@/lib/deck-store";
 import { ThemedSurface } from "@/renderer/ThemedSurface";
 import { SlideRenderer } from "@/renderer/SlideRenderer";
 import { flattenSlides } from "@/renderer/flatten";
 import { getTemplate } from "@/templates/registry";
 
-export async function generateStaticParams() {
-  return (await listDeckIds()).map((id) => ({ id }));
-}
+// 课件数据来自运行时内存存储（M5 前的过渡），按请求动态渲染，避免被全路由缓存固化为旧版/404。
+export const dynamic = "force-dynamic";
 
 const GRADE_LABELS: Record<string, string> = {
   preschool: "学前",
