@@ -15,6 +15,11 @@ export async function POST(req: Request) {
   if (!rateLimit(`import:${clientIp(req)}`, 10, 60_000)) {
     return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
+  // 快速闸：超大请求体在缓冲进内存前直接拒（Content-Length 可缺失/伪造，仅作早拒，不替代后续校验）。
+  const contentLength = Number(req.headers.get("content-length"));
+  if (contentLength && contentLength > MAX_FILE_BYTES + 1024 * 1024) {
+    return NextResponse.json({ error: "文件过大（上限 25MB）" }, { status: 413 });
+  }
   try {
     const form = await req.formData();
     const file = form.get("file");

@@ -21,14 +21,17 @@ function slideToBlocks(ps: ParsedSlide, isCover: boolean): Block[] {
     });
   }
   for (const group of ps.bodies) {
-    const items = group.map((s) => s.slice(0, 2000)).slice(0, 50);
-    if (items.length > 1) {
+    if (group.length > 1) {
+      const items = group.map((s) => s.slice(0, 2000)).slice(0, 50);
       blocks.push({ id: createBlockId("b"), type: "bulletList", items });
-    } else if (items.length === 1) {
-      blocks.push({ id: createBlockId("b"), type: "text", text: items[0].slice(0, 5000) });
+    } else if (group.length === 1) {
+      // 单段正文按 TextBlock 上限（5000）裁剪，避免不必要的截断
+      blocks.push({ id: createBlockId("b"), type: "text", text: group[0].slice(0, 5000) });
     }
   }
-  for (const img of ps.images) {
+  // 仅对能进入最终 blocks（≤50）的图片调用 saveAsset，避免写入永不被引用的资源
+  const remaining = Math.max(0, 50 - blocks.length);
+  for (const img of ps.images.slice(0, remaining)) {
     const aid = saveAsset(img.data, img.contentType);
     blocks.push({ id: createBlockId("b"), type: "image", src: `/api/assets/${aid}` });
   }

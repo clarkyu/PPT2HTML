@@ -13,15 +13,30 @@ export function ImportButton({ className }: { className?: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const onFile = async (file: File) => {
-    setBusy(true);
     setError(null);
+    // 本地预校验：非法类型/过大不发请求（与服务端文案一致）
+    if (!file.name.toLowerCase().endsWith(".pptx")) {
+      setError("仅支持 .pptx 文件");
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setError("文件过大（上限 25MB）");
+      return;
+    }
+    setBusy(true);
     try {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/import", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error((data as { error?: string }).error || "导入失败");
-      router.push(`/deck/${(data as { id: string }).id}`);
+      let data: { id?: string; error?: string } = {};
+      try {
+        data = (await res.json()) as { id?: string; error?: string };
+      } catch {
+        /* 非 JSON 响应（如网关错误），按状态码兜底 */
+      }
+      if (!res.ok) throw new Error(data.error || `导入失败（${res.status}）`);
+      if (!data.id) throw new Error("导入失败");
+      router.push(`/deck/${data.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "导入失败");
       setBusy(false);

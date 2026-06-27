@@ -28,6 +28,8 @@ export interface ParsedPptx {
 const MAX_SLIDES = 100;
 const MAX_IMAGES_PER_SLIDE = 8;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_TOTAL_DECOMPRESSED = 200 * 1024 * 1024; // 解压总预算，抵御 zip 炸弹
+const MAX_XML_BYTES = 20 * 1024 * 1024;
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -66,28 +68,30 @@ function contentTypeFor(path: string): string | null {
       return "image/webp";
     case "bmp":
       return "image/bmp";
-    case "svg":
-      return "image/svg+xml";
+    // 故意不支持 svg：SVG 可内联脚本，作为同源资源直链打开会造成存储型 XSS，直接跳过。
     default:
-      return null; // emf/wmf 等不被浏览器直接支持，跳过
+      return null; // svg / emf / wmf 等跳过
   }
 }
 
-/** 从 txBody 抽取段落文本（每段把所有 run 的 a:t 拼接）。 */
+
+/** 从 txBody 抽取段落文本（每段把所有 run / 字段的 a:t 拼接；a:br 转为空格分隔）。 */
 function paragraphsFromTxBody(txBody: unknown): string[] {
   if (!txBody || typeof txBody !== "object") return [];
   const paras = arr((txBody as Record<string, unknown>)["a:p"]);
   const out: string[] = [];
   for (const p of paras) {
     if (!p || typeof p !== "object") continue;
-    const runs = arr((p as Record<string, unknown>)["a:r"]);
+    const po = p as Record<string, unknown>;
+    // a:r（普通 run）与 a:fld（页码/日期等字段）都含 a:t
+    const nodes = [...arr(po["a:r"]), ...arr(po["a:fld"])];
     let text = "";
-    for (const r of runs) {
-      const t = r && typeof r === "object" ? (r as Record<string, unknown>)["a:t"] : undefined;
+    for (const n of nodes) {
+      const t = n && typeof n === "object" ? (n as Record<string, unknown>)["a:t"] : undefined;
       if (typeof t === "string") text += t;
       else if (typeof t === "number") text += String(t);
     }
-    const trimmed = text.trim();
+    const trimmed = text.replace(/\uE000/g, " ").replace(/\s+/g, " ").trim();
     if (trimmed) out.push(trimmed);
   }
   return out;
@@ -118,9 +122,22 @@ export async function parsePptx(data: Uint8Array | ArrayBuffer): Promise<ParsedP
     throw new Error("无法读取该文件，请确认是有效的 .pptx");
   }
 
+  // 解压预算：按中央目录记录的未压缩大小累加，超限即中止（防 zip 炸弹）。
+  let budget = 0;
+  const uncompressedSize = (f: unknown): number =>
+    (f as { _data?: { uncompressedSize?: number } })?._data?.uncompressedSize ?? 0;
+  const chargeBudget = (n: number) => {
+    budget += n;
+    if (budget > MAX_TOTAL_DECOMPRESSED) throw new Error("文件内容过大，无法导入");
+  };
+
   const readText = async (path: string): Promise<string | null> => {
     const f = zip.file(path);
-    return f ? f.async("string") : null;
+    if (!f) return null;
+    const size = uncompressedSize(f);
+    if (size > MAX_XML_BYTES) throw new Error("文件内容过大，无法导入");
+    chargeBudget(size);
+    return f.async("string");
   };
 
   const presXml = await readText("ppt/presentation.xml");
@@ -162,8 +179,12 @@ export async function parsePptx(data: Uint8Array | ArrayBuffer): Promise<ParsedP
 
   const slides: ParsedSlide[] = [];
   for (const path of slidePaths.slice(0, MAX_SLIDES)) {
-    const xml = await readText(path);
-    if (!xml) continue;
+    const raw = await readText(path);
+    if (!raw) continue;
+    // 段内软换行 <a:br/> → 带占位符的 run，保留断行位置（paragraphsFromTxBody 再转空格）
+    const xml = raw
+      .replace(/<a:br\b[^>]*\/>/g, "<a:r><a:t>\uE000</a:t></a:r>")
+      .replace(/<a:br\b[^>]*>[\s\S]*?<\/a:br>/g, "<a:r><a:t>\uE000</a:t></a:r>");
     const doc = parser.parse(xml);
     const spTree = ((doc?.["p:sld"] as Record<string, unknown>)?.["p:cSld"] as Record<string, unknown>)?.[
       "p:spTree"
@@ -210,6 +231,8 @@ export async function parsePptx(data: Uint8Array | ArrayBuffer): Promise<ParsedP
       if (!ct) continue;
       const file = zip.file(mediaPath);
       if (!file) continue;
+      if (uncompressedSize(file) > MAX_IMAGE_BYTES) continue; // 解压前按大小跳过
+      chargeBudget(uncompressedSize(file));
       const bytes = await file.async("uint8array");
       if (bytes.byteLength > MAX_IMAGE_BYTES) continue;
       images.push({ data: bytes, contentType: ct });
