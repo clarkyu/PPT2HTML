@@ -6,11 +6,10 @@ export const metadata: Metadata = {
   description: "老师只负责提升想法，实现交给言课。一句话生成网页版课件。",
 };
 
-// 手机优先（PRD 第四章）
+// 手机优先（PRD 第四章）。不限制 maximumScale：保留双指缩放，满足 WCAG 1.4.4（可放大正文/公式）。
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export default function RootLayout({
