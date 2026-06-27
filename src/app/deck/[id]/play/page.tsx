@@ -30,6 +30,7 @@ export default async function PlayPage({ params }: { params: Promise<{ id: strin
       slides={slides}
       notes={notes}
       sectionTitles={sectionTitles}
+      logoUrl={deck.theme?.logoUrl}
     />
   );
 }

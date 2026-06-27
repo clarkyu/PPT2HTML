@@ -43,8 +43,10 @@ export function buildThemeVars(
     "--color-muted": hexToTriplet(colors.muted),
     "--font-heading": heading,
     "--font-body": body,
-    // 预留钩子：M3「基础自定义」接入字号缩放时由排版消费；M1 typography 暂未引用。
     "--font-scale": override?.fontScale ?? 1,
+    // 容器基准字号 = 视口基准(--slide-base) × 用户字号缩放(--font-scale)。
+    // 块内排版用 em，故整体随之缩放（M3 字号自定义在此落地）。
+    fontSize: "calc(var(--slide-base, 1rem) * var(--font-scale, 1))",
   };
   return vars;
 }

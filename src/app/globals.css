@@ -9,6 +9,9 @@
 :root {
   --color-primary: 14 107 79;
   --font-scale: 1;
+  /* 幻灯片基准字号：渲染容器据此 × --font-scale 设 font-size，块内排版用 em 继承缩放。
+     播放器按视口放大 --slide-base 以适配投影大屏。 */
+  --slide-base: 1rem;
   --color-secondary: 71 85 105;
   --color-accent: 234 179 8;
   --color-background: 255 255 255;

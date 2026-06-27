@@ -43,22 +43,36 @@ export default async function DeckPage({ params }: { params: Promise<{ id: strin
       </Link>
 
       <header className="mt-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-heading text-2xl font-bold sm:text-3xl">{deck.meta.title}</h1>
-          <div className="mt-2 flex flex-wrap gap-2 text-xs">
-            {deck.meta.subject && <Chip>{deck.meta.subject}</Chip>}
-            {deck.meta.gradeLevel && <Chip>{GRADE_LABELS[deck.meta.gradeLevel]}</Chip>}
-            {deck.meta.durationMinutes && <Chip>{deck.meta.durationMinutes} 分钟</Chip>}
-            <Chip>{flat.length} 页</Chip>
-            <Chip>模板：{template.name}</Chip>
+        <div className="flex items-center gap-3">
+          {deck.theme?.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={deck.theme.logoUrl} alt="" className="h-10 w-10 rounded object-contain" />
+          )}
+          <div>
+            <h1 className="font-heading text-2xl font-bold sm:text-3xl">{deck.meta.title}</h1>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {deck.meta.subject && <Chip>{deck.meta.subject}</Chip>}
+              {deck.meta.gradeLevel && <Chip>{GRADE_LABELS[deck.meta.gradeLevel]}</Chip>}
+              {deck.meta.durationMinutes && <Chip>{deck.meta.durationMinutes} 分钟</Chip>}
+              <Chip>{flat.length} 页</Chip>
+              <Chip>模板：{template.name}</Chip>
+            </div>
           </div>
         </div>
-        <Link
-          href={`/deck/${deck.id}/play`}
-          className="rounded-lg bg-primary px-5 py-2.5 font-medium text-white shadow hover:opacity-90"
-        >
-          ▶ 开始授课
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href={`/deck/${deck.id}/edit`}
+            className="rounded-lg border border-muted/30 px-4 py-2.5 font-medium text-foreground hover:bg-surface"
+          >
+            编辑
+          </Link>
+          <Link
+            href={`/deck/${deck.id}/play`}
+            className="rounded-lg bg-primary px-5 py-2.5 font-medium text-white shadow hover:opacity-90"
+          >
+            ▶ 开始授课
+          </Link>
+        </div>
       </header>
 
       {deck.meta.objectives && deck.meta.objectives.length > 0 && (
