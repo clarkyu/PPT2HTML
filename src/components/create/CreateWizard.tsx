@@ -7,6 +7,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ImportButton } from "@/components/import/ImportButton";
 import type { GradeLevel } from "@/schema/types";
 import type { IntentCard, IntentField, DraftSection } from "@/ai/schemas";
 import type { OutlineParsed } from "@/schema/zod";
@@ -166,6 +167,14 @@ export function CreateWizard({ mock }: { mock: boolean }) {
           >
             {busy ? "解析中…" : "下一步：确认要素"}
           </button>
+
+          <div className="mt-8 flex items-center gap-3 text-xs text-muted">
+            <span className="h-px flex-1 bg-muted/20" />或<span className="h-px flex-1 bg-muted/20" />
+          </div>
+          <div className="mt-4">
+            <p className="mb-2 text-sm text-muted">已有 PPT？导入并改造为网页版课件。</p>
+            <ImportButton />
+          </div>
         </section>
       )}
 
