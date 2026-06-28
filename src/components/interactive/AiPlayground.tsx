@@ -149,6 +149,15 @@ export default function AiPlayground({ scripts }: { scripts: PlaygroundScript[] 
   const lineCount = Math.max(1, visibleCode.split("\n").length);
   const showCodePanel = phase === "code" || phase === "explain" || phase === "done";
 
+  // 流式时把代码区滚到底，让光标始终可见（代码超出固定高度时）。
+  const codeScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (phase === "code") {
+      const el = codeScrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    }
+  }, [codeN, phase]);
+
   return (
     <div className={styles.wrap}>
       <div className={styles.header}>
@@ -202,7 +211,7 @@ export default function AiPlayground({ scripts }: { scripts: PlaygroundScript[] 
                       <span>{script.filename}</span>
                       <span className={styles.lang}>{script.language}</span>
                     </div>
-                    <div className={styles.codeScroll}>
+                    <div className={styles.codeScroll} ref={codeScrollRef}>
                       <div className={styles.gutter}>
                         {Array.from({ length: lineCount }, (_, i) => i + 1).join("\n")}
                       </div>

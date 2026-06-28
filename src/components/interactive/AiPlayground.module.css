@@ -174,11 +174,14 @@
 }
 .codeScroll {
   display: flex;
-  overflow-x: auto;
+  max-height: 240px;
+  overflow: auto;
   font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
   font-size: 13.5px;
   line-height: 1.65;
+  scroll-behavior: smooth;
 }
+.gutter { position: sticky; left: 0; }
 .gutter {
   flex: none;
   padding: 12px 12px 12px 14px;
