@@ -38,7 +38,7 @@
 | 变量 | 说明 |
 | --- | --- |
 | `AUTH_URL` | 站点 URL（`https://域名`）。固定后会话/回调不再依赖可伪造的 `x-forwarded-proto`/`Host`。 |
-| `EXPORT_ORIGIN` | 服务端渲染打印页所用 origin；固定可消除 Host 头注入/SSRF 面（默认取请求 origin）。 |
+| `EXPORT_ORIGIN` | 服务端渲染打印页所用 origin。默认走本机回环 `http://127.0.0.1:$PORT`（容器/反代后最可靠、且消除 Host 头注入 SSRF 面），一般无需设置；勿指向公网域名。 |
 | `EXPORT_MAX_CONCURRENT` | 同时进行的 PDF 导出数（默认 2）。每个启动一个 Chromium（约 200–300MB），按实例内存调。 |
 | `PW_CHROMIUM_PATH` | Chromium 可执行文件路径（默认 `/opt/pw-browsers/chromium`）。 |
 | `PGSSL` / `PG_POOL_MAX` / `PG_IDLE_TIMEOUT_MS` / `PG_CONN_TIMEOUT_MS` | 连接 TLS 与连接池参数。 |
@@ -75,7 +75,7 @@ npm run start          # 启动（next start，长驻进程）
 - [ ] ⚠️ `AUTH_SECRET` 非公开占位（`change-me…`/`dev-insecure…`）：生产已硬失败拒绝以占位启动（`src/auth.ts`）。
 - [ ] ✅ 写操作鉴权（401/403/认领）、读取按链接公开（产品决策）。课件 id/资源 id 为 CSPRNG，不可枚举。
 - [ ] ✅ 各路由内存限流就绪；🔭 多副本下不跨实例共享，规模化需换 **Redis / 网关限流**（见 §7）。
-- [ ] ✅ PDF 导出：全局并发闸 + 渲染超时 + 页数上界；`EXPORT_ORIGIN` 固定以收敛 SSRF 面。
+- [ ] ✅ PDF 导出：全局并发闸 + 渲染超时 + 页数上界；服务端渲染默认走本机回环（`127.0.0.1:$PORT`），消除 Host 头注入 SSRF 面。
 - [ ] 反代/WAF：限制请求体大小（导入上限 25MB，应用层已校验）、超时、基础防爬。
 
 ## 6. 生产前必做（功能补全）

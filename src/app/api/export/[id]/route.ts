@@ -63,8 +63,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     const reqUrl = new URL(req.url);
-    // 默认取请求 origin；可用 EXPORT_ORIGIN 固定，避免 Host 头被注入影响服务端导航（SSRF 面）。
-    const origin = process.env.EXPORT_ORIGIN ?? reqUrl.origin;
+    // 服务端渲染打印页：默认走本机回环 http（打印页由同一进程提供）。
+    // 不用请求 origin——反代/容器后它可能是 https://0.0.0.0:$PORT 这类不可达地址
+    // （TLS 在边缘终止，回访会 ERR_SSL_PROTOCOL_ERROR / hairpin 失败）。回环还顺手消了 Host 头注入的 SSRF 面。
+    // 需指向其他渲染服务时用 EXPORT_ORIGIN 覆盖。
+    const origin = process.env.EXPORT_ORIGIN ?? `http://127.0.0.1:${process.env.PORT ?? "3000"}`;
     const layout = reqUrl.searchParams.get("layout") === "portrait" ? "portrait" : "landscape";
     const withNotes = reqUrl.searchParams.get("notes") === "1";
     const printUrl = `${origin}/deck/${encodeURIComponent(id)}/print?layout=${layout}${
