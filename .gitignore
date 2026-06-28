@@ -8,6 +8,11 @@
 /out/
 next-env.d.ts
 
+# serwist（构建期生成的 Service Worker）
+/public/sw.js
+/public/sw.js.map
+/public/swe-worker-*.js
+
 # production
 /build
 
