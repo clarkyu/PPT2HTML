@@ -6,6 +6,7 @@ import { deckSchema } from "@/schema/zod";
 import { newDeckId, saveDeck } from "@/lib/deck-store";
 import { errorResponse } from "@/lib/api-error";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { auth } from "@/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,7 +39,9 @@ export async function POST(req: Request) {
       return errorResponse(check.error, "课件组装结果不合法");
     }
 
-    await saveDeck(deck);
+    // 登录则归属创建者；匿名创建为 null（按链接公开）。
+    const session = await auth();
+    await saveDeck(deck, { ownerId: session?.user?.id ?? null });
     return NextResponse.json({ id: deck.id });
   } catch (e) {
     return errorResponse(e, "保存失败");

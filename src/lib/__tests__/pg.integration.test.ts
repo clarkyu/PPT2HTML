@@ -6,9 +6,25 @@
 import { afterAll, describe, expect, it } from "vitest";
 import type { Deck } from "@/schema/types";
 import { fixtureDecks } from "@/schema/fixtures/decks";
-import { getDeck, listDecks, newDeckId, saveDeck, VersionConflictError } from "@/lib/deck-store";
+import {
+  getDeck,
+  getDeckRecord,
+  listDecks,
+  newDeckId,
+  saveDeck,
+  VersionConflictError,
+} from "@/lib/deck-store";
 import { getAsset, newAssetId, putAsset } from "@/lib/asset-store";
+import {
+  generateOtpCode,
+  getUserByPhone,
+  saveOtp,
+  upsertUserByPhone,
+  verifyOtp,
+} from "@/lib/user-store";
 import { getPool } from "@/lib/db";
+
+const TEST_OWNER = "u_test_owner";
 
 function makeDeck(id: string, overrides: Partial<Deck> = {}): Deck {
   return { ...structuredClone(fixtureDecks[0]), id, ...overrides };
@@ -16,6 +32,7 @@ function makeDeck(id: string, overrides: Partial<Deck> = {}): Deck {
 
 const createdDecks: string[] = [];
 const createdAssets: string[] = [];
+const createdPhones: string[] = [];
 
 describe.skipIf(!process.env.DATABASE_URL)("PostgreSQL 持久化", () => {
   afterAll(async () => {
@@ -26,6 +43,10 @@ describe.skipIf(!process.env.DATABASE_URL)("PostgreSQL 持久化", () => {
     if (createdAssets.length) {
       await pool.query("DELETE FROM assets WHERE id = ANY($1)", [createdAssets]);
     }
+    if (createdPhones.length) {
+      await pool.query("DELETE FROM users WHERE phone = ANY($1)", [createdPhones]);
+      await pool.query("DELETE FROM otp_codes WHERE phone = ANY($1)", [createdPhones]);
+    }
     await pool.end();
   });
 
@@ -33,7 +54,7 @@ describe.skipIf(!process.env.DATABASE_URL)("PostgreSQL 持久化", () => {
     const id = newDeckId();
     createdDecks.push(id);
     const deck = makeDeck(id, { version: 1 });
-    await saveDeck(deck);
+    await saveDeck(deck, { ownerId: TEST_OWNER });
     const got = await getDeck(id);
     expect(got).not.toBeNull();
     expect(got?.id).toBe(id);
@@ -67,16 +88,51 @@ describe.skipIf(!process.env.DATABASE_URL)("PostgreSQL 持久化", () => {
     expect((await getDeck(id))?.version).toBe(6);
   });
 
-  it("listDecks 按 updated_at DESC 排序且 ≤200", async () => {
-    const id = newDeckId();
-    createdDecks.push(id);
-    await saveDeck(makeDeck(id, { version: 1, updatedAt: new Date().toISOString() }));
-    const list = await listDecks();
+  it("listDecks 仅返回该 owner 的课件，按 updated_at DESC 且 ≤200", async () => {
+    const mineId = newDeckId();
+    const otherId = newDeckId();
+    createdDecks.push(mineId, otherId);
+    await saveDeck(makeDeck(mineId, { version: 1, updatedAt: new Date().toISOString() }), {
+      ownerId: TEST_OWNER,
+    });
+    await saveDeck(makeDeck(otherId, { version: 1 }), { ownerId: "u_someone_else" });
+    const list = await listDecks(TEST_OWNER);
     expect(list.length).toBeLessThanOrEqual(200);
-    expect(list.some((d) => d.id === id)).toBe(true);
+    expect(list.some((d) => d.id === mineId)).toBe(true);
+    expect(list.some((d) => d.id === otherId)).toBe(false);
     for (let i = 1; i < list.length; i++) {
       expect(list[i - 1].updatedAt >= list[i].updatedAt).toBe(true);
     }
+  });
+
+  it("归属：匿名课件经 CAS 被认领，owner_id 写入并在后续保留", async () => {
+    const id = newDeckId();
+    createdDecks.push(id);
+    await saveDeck(makeDeck(id, { version: 1 }), { ownerId: null });
+    expect((await getDeckRecord(id))?.ownerId).toBeNull();
+    await saveDeck(makeDeck(id, { version: 2 }), { expectedVersion: 1, ownerId: TEST_OWNER });
+    expect((await getDeckRecord(id))?.ownerId).toBe(TEST_OWNER);
+    await saveDeck(makeDeck(id, { version: 3 }), { expectedVersion: 2 });
+    expect((await getDeckRecord(id))?.ownerId).toBe(TEST_OWNER);
+  });
+
+  it("用户：upsertUserByPhone 幂等，getUserByPhone 回读", async () => {
+    const phone = "13900000001";
+    createdPhones.push(phone);
+    const u1 = await upsertUserByPhone(phone);
+    const u2 = await upsertUserByPhone(phone);
+    expect(u1.id).toBe(u2.id);
+    expect((await getUserByPhone(phone))?.id).toBe(u1.id);
+  });
+
+  it("OTP：正确码验证通过并被消费，错误码失败", async () => {
+    const phone = "13900000002";
+    createdPhones.push(phone);
+    const code = generateOtpCode();
+    await saveOtp(phone, code);
+    expect(await verifyOtp(phone, "000000" === code ? "111111" : "000000")).toBe(false); // 错误码
+    expect(await verifyOtp(phone, code)).toBe(true); // 正确码
+    expect(await verifyOtp(phone, code)).toBe(false); // 已消费
   });
 
   it("putAsset → getAsset：BYTEA 二进制原样往返（含 0x00），重复 put 不报错", async () => {

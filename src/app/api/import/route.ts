@@ -7,6 +7,7 @@ import { putAsset } from "@/lib/asset-store";
 import { errorResponse } from "@/lib/api-error";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { usePostgres, withTx } from "@/lib/db";
+import { auth } from "@/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,15 +68,18 @@ export async function POST(req: Request) {
     if (assetBytes > MAX_ASSET_BYTES) {
       return NextResponse.json({ error: "课件内图片总量过大，请精简后重试" }, { status: 413 });
     }
+    // 登录则归属导入者；匿名为 null（按链接公开）。
+    const session = await auth();
+    const ownerId = session?.user?.id ?? null;
     // 资源 + 课件单事务写入：任一步失败整体回滚，不留孤儿资源（内存回退无需事务）。
     if (usePostgres) {
       await withTx(async (c) => {
         for (const a of assets) await putAsset(a.id, a.data, a.contentType, c);
-        await saveDeck(deck, { exec: c });
+        await saveDeck(deck, { exec: c, ownerId });
       });
     } else {
       await Promise.all(assets.map((a) => putAsset(a.id, a.data, a.contentType)));
-      await saveDeck(deck);
+      await saveDeck(deck, { ownerId });
     }
     return NextResponse.json({ id: deck.id, slides: parsed.slides.length });
   } catch (e) {
