@@ -1,4 +1,6 @@
-// 生成品牌色 PWA 图标（无图像库依赖，手写 PNG 编码）。用法：node scripts/gen-icons.mjs
+// 生成品牌色 PWA 图标（无图像库依赖，手写 PNG 编码）。用法：npm run gen:icons
+// 注意：图标为「已入库产物」。改动品牌色（globals.css --color-primary / manifest theme_color）后，
+// 必须重跑本脚本并提交 public/*.png（脚本输出确定性，CI 可用 git diff --exit-code 校验一致性）。
 import { deflateSync } from "node:zlib";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

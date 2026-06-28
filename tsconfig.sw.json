@@ -1,0 +1,10 @@
+{
+  "//": "单独以 WebWorker 环境检查 Service Worker（sw.ts 从主 tsconfig 排除以免 dom lib 冲突）。",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "WebWorker"],
+    "noEmit": true
+  },
+  "include": ["src/app/sw.ts"],
+  "exclude": []
+}

@@ -23,6 +23,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Typecheck Service Worker
+        run: npm run typecheck:sw
+
       - name: Test
         run: npm test
 

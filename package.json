@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "typecheck:sw": "tsc -p tsconfig.sw.json",
+    "gen:icons": "node scripts/gen-icons.mjs",
     "test": "vitest run",
     "test:pg": "vitest run src/lib/__tests__/pg.integration.test.ts",
     "db:init": "node scripts/db-init.mjs"
