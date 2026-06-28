@@ -23,6 +23,7 @@
 | [docs/06-roadmap.md](docs/06-roadmap.md) | 分阶段路线图 |
 | [docs/07-task-breakdown.md](docs/07-task-breakdown.md) | MVP 工程任务拆解（Epic → Story） |
 | [docs/08-open-questions.md](docs/08-open-questions.md) | 待确认决策与默认假设 |
+| [docs/09-deployment.md](docs/09-deployment.md) | 上线部署检查清单（环境变量 / 安全 / 扩展） |
 
 ---
 
