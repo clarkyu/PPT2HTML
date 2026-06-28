@@ -19,5 +19,6 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "//": "sw.ts 以 WebWorker 环境由 Serwist 单独编译，排除以免与 dom lib 类型冲突",
+  "exclude": ["node_modules", "src/app/sw.ts"]
 }
