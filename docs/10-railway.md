@@ -78,7 +78,7 @@
 | 变量 | 说明 |
 | --- | --- |
 | `AUTH_URL` | `https://<域名>`，拿到域名后必设（见 §2.5）。 |
-| `EXPORT_ORIGIN` | `https://<域名>`，固定服务端打印页 origin，收敛 SSRF 面。 |
+| `EXPORT_ORIGIN` | 默认走本机回环 `http://127.0.0.1:$PORT`，**一般无需设置**。⚠️ 切勿设成公网域名（容器回访会 SSL/hairpin 失败）。 |
 | `EXPORT_MAX_CONCURRENT` | 同时导出数（默认 2，每个起一个 Chromium 约 200–300MB）。按实例内存调。 |
 
 ### 可省（原型阶段）
