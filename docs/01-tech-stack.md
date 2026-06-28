@@ -12,7 +12,7 @@
 | UI 组件 | **shadcn/ui（Radix 基座）** | 可拥有源码、易定制、无障碍好；适合编辑器这类复杂交互 | Ant Design、MUI |
 | 客户端状态 | **Zustand** | 编辑器/播放器本地状态轻量直观，避免 Redux 样板 | Jotai、Redux Toolkit |
 | 服务端状态 | **TanStack Query** | 生成任务轮询、缓存、乐观更新（精修） | SWR |
-| 数据库 | **PostgreSQL + Prisma** | 关系型存用户/课件元数据；课件正文以 **JSONB** 存（schema 灵活、可索引） | MySQL、MongoDB |
+| 数据库 | **PostgreSQL + node-postgres(pg)** | 手写 schema.sql 迁移；课件正文以 **JSONB** 存（schema 灵活、可索引），冗余少量元数据列；未配 DATABASE_URL 时回退内存实现 | Prisma、Drizzle、MongoDB |
 | 鉴权 | **Auth.js (NextAuth)** | 手机号登录为主锚点（对接未来统一 IdP，见 F15）；会话管理成熟 | 自建 JWT、Clerk |
 | AI 接入 | **LLM Provider 抽象层** | 默认国产模型（DeepSeek / 通义千问 / 智谱 GLM），可切换 Claude/OpenAI；按任务分级路由 | 直连单一厂商 SDK |
 | 结构化生成 | **JSON Schema + 校验（Zod / Ajv）** | 强制 LLM 产出贴合课件 Schema，结合 function-calling/JSON mode | —— |

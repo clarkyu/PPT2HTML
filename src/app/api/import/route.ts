@@ -3,13 +3,17 @@ import { parsePptx } from "@/import/pptx";
 import { mapPptxToDeck } from "@/import/map";
 import { deckSchema } from "@/schema/zod";
 import { newDeckId, saveDeck } from "@/lib/deck-store";
+import { putAsset } from "@/lib/asset-store";
 import { errorResponse } from "@/lib/api-error";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { usePostgres, withTx } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
+// 单 deck 抽取出的图片字节总量上界（BYTEA 整存的过渡期保险）。
+const MAX_ASSET_BYTES = 60 * 1024 * 1024;
 
 export async function POST(req: Request) {
   if (!rateLimit(`import:${clientIp(req)}`, 10, 60_000)) {
@@ -47,7 +51,7 @@ export async function POST(req: Request) {
     }
 
     const fallbackTitle = file.name.replace(/\.pptx$/i, "") || "导入的课件";
-    const deck = mapPptxToDeck(parsed, {
+    const { deck, assets } = mapPptxToDeck(parsed, {
       id: newDeckId(),
       now: new Date().toISOString(),
       templateId: "tpl-classic-blue",
@@ -58,7 +62,21 @@ export async function POST(req: Request) {
     if (!check.success) {
       return errorResponse(check.error, "导入结果不合法");
     }
-    await saveDeck(deck);
+    // 资源体积兜底：避免单次大 PPT 把几十 MB 二进制写进库（BYTEA 过渡期，迁对象存储前的保险）。
+    const assetBytes = assets.reduce((n, a) => n + a.data.byteLength, 0);
+    if (assetBytes > MAX_ASSET_BYTES) {
+      return NextResponse.json({ error: "课件内图片总量过大，请精简后重试" }, { status: 413 });
+    }
+    // 资源 + 课件单事务写入：任一步失败整体回滚，不留孤儿资源（内存回退无需事务）。
+    if (usePostgres) {
+      await withTx(async (c) => {
+        for (const a of assets) await putAsset(a.id, a.data, a.contentType, c);
+        await saveDeck(deck, { exec: c });
+      });
+    } else {
+      await Promise.all(assets.map((a) => putAsset(a.id, a.data, a.contentType)));
+      await saveDeck(deck);
+    }
     return NextResponse.json({ id: deck.id, slides: parsed.slides.length });
   } catch (e) {
     return errorResponse(e, "导入失败");

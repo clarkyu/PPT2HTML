@@ -14,7 +14,14 @@ const GRADE_LABELS: Record<string, string> = {
 };
 
 export default async function HomePage() {
-  const decks = await listDecks();
+  // DB 抖动时优雅降级：列表暂不可用也保留导入/生成入口可用，不让首页整页 500。
+  let decks: Awaited<ReturnType<typeof listDecks>> = [];
+  let listFailed = false;
+  try {
+    decks = await listDecks();
+  } catch {
+    listFailed = true;
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
@@ -34,6 +41,12 @@ export default async function HomePage() {
           </Link>
         </div>
       </header>
+
+      {listFailed && (
+        <p className="mt-8 rounded-lg border border-muted/20 bg-surface px-4 py-3 text-sm text-muted">
+          课件列表暂时无法加载，请稍后重试。你仍可导入 PPT 或一句话生成新课件。
+        </p>
+      )}
 
       <section className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {decks.map((d) => {

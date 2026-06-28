@@ -42,7 +42,7 @@
 
 - **框架**：Next.js 15（App Router）+ React 19 + TypeScript
 - **样式**：Tailwind CSS + CSS 变量（运行时主题切换）
-- **数据库**：PostgreSQL + Prisma（课件内容存 JSONB）
+- **数据库**：PostgreSQL + node-postgres(pg)（课件正文存 JSONB；未配 DATABASE_URL 时回退内存实现，便于本地/CI）
 - **AI**：LLM Provider 抽象层（默认国产模型，可切换），多 Agent 流水线
 - **PWA**：Serwist（Service Worker、离线缓存）
 - **存储**：S3 兼容对象存储（图片 / PPT 上传 / PDF 导出）
@@ -51,12 +51,16 @@
 
 ---
 
-## 本地开发（脚手架就绪后）
+## 本地开发
 
 ```bash
-npm install          # 安装依赖
-cp .env.example .env # 配置环境变量（数据库、LLM Key 等）
-npm run dev          # 启动开发服务器 http://localhost:3000
+npm install                                     # 安装依赖
+cp .env.example .env                            # 配置 DATABASE_URL、LLM Key 等
+docker compose -f docker-compose.dev.yml up -d  # 启动本地 PostgreSQL
+npm run db:init                                 # 应用 src/db/migrations（幂等、版本化）
+npm run dev                                     # 启动 http://localhost:3000
 ```
 
-> 当前为规划阶段，脚手架配置已就绪；首次运行需补齐 `.env` 中的密钥。
+> 不配置 `DATABASE_URL` 时各 store 自动回退内存实现（无需起库即可跑通，并自带示例课件），
+> 但数据不持久。托管 Postgres（Supabase/Neon/RDS 等）默认要求 TLS：在连接串追加
+> `?sslmode=require`，或设 `PGSSL=require`。

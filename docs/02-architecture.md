@@ -88,7 +88,7 @@
 | `player` | 全屏播放、翻页、演讲者备注/计时 | 播放控制 |
 | `import` | .pptx 解析与映射 | OOXML 抽取、映射器 |
 | `export` | PDF 导出 | Puppeteer 渲染管线 |
-| `persistence` | 课件/用户存取 | Prisma model、Repository |
+| `persistence` | 课件/用户存取 | node-postgres、migrations、Repository（src/lib/*-store.ts） |
 | `auth` | 注册登录、作品空间 | Auth.js 配置 |
 
 ## 渲染层：自适应而非固定尺寸
