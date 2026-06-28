@@ -13,6 +13,16 @@ export const dynamic = "force-dynamic";
 type SearchParams = { layout?: string; notes?: string };
 
 const PRINT_CSS = `
+  /* 随应用内置中文字体：导出 PDF 时不依赖宿主机 CJK 字体，避免无头 Chromium 渲染为豆腐块。
+     仅打印路由加载，不影响线上 Web 应用。中文用 Noto Sans SC，拉丁/符号回退系统字体。 */
+  @font-face {
+    font-family: "Noto Sans SC";
+    src: url("/fonts/noto-sans-sc-400.woff2") format("woff2");
+    font-weight: 100 900;
+    font-display: block;
+  }
+  [data-print-root] * { font-family: "Noto Sans SC", system-ui, sans-serif !important; }
+
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { margin: 0; padding: 0; background: #fff; }
   .print-page { break-after: page; break-inside: avoid; }

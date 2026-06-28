@@ -4,7 +4,7 @@
  * 导出 PDF：用户在横版（16:9 幻灯片）/ 竖版（A4 讲义）间切换，竖版可选含演讲者备注。
  * 通过 /api/export/[id] 服务端用 Playwright 渲染，下载为 PDF。
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type Layout = "landscape" | "portrait";
 
@@ -13,6 +13,7 @@ export function ExportButton({ deckId, title }: { deckId: string; title: string 
   const [notes, setNotes] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
 
   const exportPdf = async () => {
     setBusy(true);
@@ -33,7 +34,9 @@ export function ExportButton({ deckId, title }: { deckId: string; title: string 
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      // 延迟回收，避免部分浏览器在下载真正开始前 URL 失效。
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      if (detailsRef.current) detailsRef.current.open = false;
     } catch (e) {
       setError(e instanceof Error ? e.message : "导出失败");
     } finally {
@@ -42,7 +45,7 @@ export function ExportButton({ deckId, title }: { deckId: string; title: string 
   };
 
   return (
-    <details className="group relative">
+    <details ref={detailsRef} className="group relative">
       <summary className="flex cursor-pointer list-none items-center rounded-lg border border-muted/30 px-4 py-2.5 font-medium text-foreground hover:bg-surface">
         ⬇ 导出 PDF
       </summary>

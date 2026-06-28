@@ -5,8 +5,19 @@
 type Bucket = { count: number; reset: number };
 const buckets = new Map<string, Bucket>();
 
+// 上次清扫时间：长驻进程下定期回收过期桶，避免 Map 随独立 IP 数无界增长。
+let lastSweep = 0;
+function sweep(now: number): void {
+  if (now - lastSweep < 60_000) return;
+  lastSweep = now;
+  for (const [k, v] of buckets) {
+    if (now > v.reset) buckets.delete(k);
+  }
+}
+
 export function rateLimit(key: string, limit: number, windowMs: number): boolean {
   const now = Date.now();
+  sweep(now);
   const e = buckets.get(key);
   if (!e || now > e.reset) {
     buckets.set(key, { count: 1, reset: now + windowMs });
