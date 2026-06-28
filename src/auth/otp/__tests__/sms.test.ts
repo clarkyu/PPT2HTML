@@ -33,6 +33,8 @@ describe("阿里云签名/编码", () => {
     expect(percentEncode("~")).toBe("~");
     expect(percentEncode("/")).toBe("%2F");
     expect(percentEncode("中")).toBe("%E4%B8%AD");
+    // 阿里云规范要求编码 ! ' ( ) *（encodeURIComponent 默认不编码这些）
+    expect(percentEncode("a!'()*")).toBe("a%21%27%28%29%2A");
   });
 
   it("待签名串按排序+规范化精确构造", () => {
@@ -88,6 +90,13 @@ describe("通用 HTTP 网关", () => {
     expect(() => createHttpSender()).toThrow(/SMS_WEBHOOK_URL/);
   });
 
+  it("非法 / 非 http(s) 的 SMS_WEBHOOK_URL 被拒", () => {
+    process.env.SMS_WEBHOOK_URL = "not a url";
+    expect(() => createHttpSender()).toThrow(/不是合法 URL/);
+    process.env.SMS_WEBHOOK_URL = "ftp://example/send";
+    expect(() => createHttpSender()).toThrow(/http\(s\)/);
+  });
+
   it("POST 手机号+验证码，带 Bearer，非 2xx 抛错", async () => {
     process.env.SMS_WEBHOOK_URL = "https://hook.example/send";
     process.env.SMS_WEBHOOK_TOKEN = "tok";
@@ -105,5 +114,26 @@ describe("通用 HTTP 网关", () => {
 
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 502 }) as Response));
     await expect(createHttpSender().send("13800138000", "654321")).rejects.toThrow(/502/);
+  });
+});
+
+describe("provider 选择（index 模块加载即校验）", () => {
+  afterEach(() => {
+    vi.resetModules();
+    delete process.env.SMS_PROVIDER;
+  });
+
+  it("空 provider → mock 渠道", async () => {
+    vi.resetModules();
+    delete process.env.SMS_PROVIDER;
+    const mod = await import("@/auth/otp");
+    expect(mod.otpDeliveryIsMock).toBe(true);
+    expect(mod.getOtpSender().name).toBe("mock");
+  });
+
+  it("未知 provider → 模块加载即抛错（部署期可观测）", async () => {
+    vi.resetModules();
+    process.env.SMS_PROVIDER = "nope";
+    await expect(import("@/auth/otp")).rejects.toThrow(/未知 SMS_PROVIDER/);
   });
 });

@@ -8,12 +8,15 @@ import type { OtpSender } from "./types";
 
 const ENDPOINT = "https://dysmsapi.aliyuncs.com/";
 
-/** 阿里云 RPC percentEncode（与官方 SDK 一致：encodeURIComponent 后再修正 + * ~）。 */
+/**
+ * 阿里云 RPC percentEncode（与官方 SDK 一致）：encodeURIComponent 后再编码 ! ' ( ) *。
+ * encodeURIComponent 不产生 +，且把空格编为 %20、~ 保留为未保留字符，故无需额外处理这些。
+ */
 export function percentEncode(s: string): string {
-  return encodeURIComponent(s)
-    .replace(/\+/g, "%20")
-    .replace(/\*/g, "%2A")
-    .replace(/%7E/g, "~");
+  return encodeURIComponent(s).replace(
+    /[!'()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
 }
 
 /** 由参数构造待签名串：GET&%2F&percentEncode(规范化查询串)。 */
@@ -65,6 +68,7 @@ export function createAliyunSender(): OtpSender {
         .join("&");
       const res = await fetch(`${ENDPOINT}?${query}&Signature=${percentEncode(signature)}`, {
         method: "GET",
+        signal: AbortSignal.timeout(8000), // 上游挂起不拖死验证码下发路径
       });
       const data = (await res.json().catch(() => ({}))) as { Code?: string; Message?: string };
       if (!res.ok || data.Code !== "OK") {
