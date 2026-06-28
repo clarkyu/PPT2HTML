@@ -6,6 +6,7 @@ import { ThemedSurface } from "@/renderer/ThemedSurface";
 import { SlideRenderer } from "@/renderer/SlideRenderer";
 import { flattenSlides } from "@/renderer/flatten";
 import { getTemplate } from "@/templates/registry";
+import { ExportButton } from "@/components/export/ExportButton";
 
 // 课件数据来自运行时内存存储（M5 前的过渡），按请求动态渲染，避免被全路由缓存固化为旧版/404。
 export const dynamic = "force-dynamic";
@@ -65,7 +66,7 @@ export default async function DeckPage({ params }: { params: Promise<{ id: strin
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {canEdit && (
             <Link
               href={`/deck/${deck.id}/edit`}
@@ -74,6 +75,7 @@ export default async function DeckPage({ params }: { params: Promise<{ id: strin
               编辑
             </Link>
           )}
+          <ExportButton deckId={deck.id} title={deck.meta.title} />
           <Link
             href={`/deck/${deck.id}/play`}
             className="rounded-lg bg-primary px-5 py-2.5 font-medium text-white shadow hover:opacity-90"
