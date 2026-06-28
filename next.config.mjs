@@ -22,6 +22,8 @@ const withSerwist = withSerwistInit({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // playwright-core 仅在 PDF 导出路由的 node 运行时按需加载，不打进构建产物。
+  serverExternalPackages: ["playwright-core"],
 };
 
 export default withSerwist(nextConfig);
