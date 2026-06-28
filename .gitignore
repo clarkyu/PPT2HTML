@@ -33,9 +33,6 @@ yarn-error.log*
 !.vscode/extensions.json
 .idea
 
-# prisma (local)
-/prisma/*.db
-
 # uploads / local object storage
 /.minio
 /uploads

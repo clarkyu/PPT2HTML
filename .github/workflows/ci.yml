@@ -28,3 +28,40 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # 独立 job：让 schema/迁移/全部 pg 分支 SQL 在每个 PR 真正执行（verify 仍只跑无 DB 快测）。
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: yanke
+          POSTGRES_PASSWORD: yanke
+          POSTGRES_DB: yanke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U yanke"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://yanke:yanke@localhost:5432/yanke
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply migrations
+        run: npm run db:init
+
+      - name: PostgreSQL integration tests
+        run: npm run test:pg

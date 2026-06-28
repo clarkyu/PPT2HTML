@@ -10,6 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:pg": "vitest run src/lib/__tests__/pg.integration.test.ts",
     "db:init": "node scripts/db-init.mjs"
   },
   "dependencies": {

@@ -1,5 +1,10 @@
--- 言课 · 数据库 schema（PostgreSQL）。幂等，可重复执行（db:init）。
+-- 言课 · 初始 schema（PostgreSQL）。幂等，可重复执行。
 -- 课件正文以 JSONB 整存（data），并冗余少量元数据列用于列表/排序/检索。
+--
+-- 冗余列与 data 的派生关系（约束：只允许经 deck-store.saveDeck 写入，与 data 同写）：
+--   title=data->meta->>title, subject=data->meta->>subject, grade_level=data->meta->>gradeLevel,
+--   source=data->meta->>source, template_id=data->>templateId, version=data->>version,
+--   slide_count=sections 内 slides 总数。
 
 CREATE TABLE IF NOT EXISTS decks (
   id          TEXT PRIMARY KEY,

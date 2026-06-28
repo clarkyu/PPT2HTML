@@ -10,7 +10,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return new Response("Too Many Requests", { status: 429 });
   }
   const { id } = await params;
-  if (!/^a_[a-z0-9]+$/.test(id)) return new Response("Not found", { status: 404 });
+  // base64url 字符集（与 newAssetId 一致）：A-Z a-z 0-9 - _
+  if (!/^a_[A-Za-z0-9_-]+$/.test(id)) return new Response("Not found", { status: 404 });
   const asset = await getAsset(id);
   if (!asset) return new Response("Not found", { status: 404 });
   return new Response(asset.data as BodyInit, {

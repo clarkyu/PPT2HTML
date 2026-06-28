@@ -9,7 +9,7 @@
 | --- | --- | --- | --- | --- |
 | T1 | 前端框架 | Next.js 15 全栈 | PWA/多端/快速 MVP 最优；链接首屏好 | 全局，最高 |
 | T2 | LLM 供应商 | 抽象层，默认国产模型（DeepSeek/通义/GLM），可切 Claude/OpenAI | PIPL 合规、成本、中文学科强；早期可用海外模型对比质量 | AI 层 |
-| T3 | 数据库 | PostgreSQL + Prisma，正文存 JSONB | schema 灵活演进 + 元数据可检索 | 持久化 |
+| T3 | 数据库 | PostgreSQL + node-postgres(pg)，正文存 JSONB | schema 灵活演进 + 元数据可检索 | 持久化 |
 | T4 | 鉴权 | Auth.js，手机号主锚点 | 对接未来统一 IdP（F15） | 账户 |
 | T5 | 本次交付物 | 规划文档 + 可运行脚手架 | 让下一步「编码」即刻可启动 | —— |
 | T6 | 文档语言 | 中文 | 与 PRD、团队一致 | —— |

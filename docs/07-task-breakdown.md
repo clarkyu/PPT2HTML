@@ -13,7 +13,7 @@
 
 ## Epic B · 项目脚手架与基础设施（M0）
 - [ ] B1 Next.js 15 + TS + Tailwind + shadcn/ui 初始化
-- [ ] B2 Prisma + PostgreSQL 接入，Deck/User model（正文存 JSONB）
+- [ ] B2 node-postgres + PostgreSQL 接入，migrations + db:init（正文存 JSONB）
 - [ ] B3 对象存储（S3/MinIO）封装：上传/取 URL
 - [ ] B4 LLM Provider 抽象层 + 国产模型默认适配 + 配置化路由表
 - [ ] B5 `.env.example`、配置加载与校验
