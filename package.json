@@ -16,6 +16,8 @@
     "db:init": "node scripts/db-init.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1075.0",
+    "@aws-sdk/s3-request-presigner": "^3.1075.0",
     "@serwist/next": "^9.5.11",
     "clsx": "^2.1.1",
     "fast-xml-parser": "^4.5.1",

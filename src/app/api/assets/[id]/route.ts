@@ -1,10 +1,11 @@
-import { getAsset } from "@/lib/asset-store";
+import { getAsset, getAssetUrl, useS3 } from "@/lib/asset-store";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { errorResponse } from "@/lib/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** 提供导入的图片资源（内存存储，M5 前过渡）。 */
+/** 提供导入的图片资源：S3 模式重定向到签名 URL；否则从 DB/内存流式返回。 */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!rateLimit(`asset:${clientIp(req)}`, 240, 60_000)) {
     return new Response("Too Many Requests", { status: 429 });
@@ -12,6 +13,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   // base64url 字符集（与 newAssetId 一致）：A-Z a-z 0-9 - _
   if (!/^a_[A-Za-z0-9_-]+$/.test(id)) return new Response("Not found", { status: 404 });
+
+  if (useS3) {
+    try {
+      const url = await getAssetUrl(id);
+      if (!url) return new Response("Not found", { status: 404 });
+      // 重定向到时效签名 URL；不缓存重定向本身（签名会过期）。
+      return new Response(null, {
+        status: 302,
+        headers: { Location: url, "Cache-Control": "private, no-store" },
+      });
+    } catch (e) {
+      // 配置/权限/网络错误经统一错误响应转 5xx（不与「不存在」的 404 混淆）。
+      return errorResponse(e, "资源暂不可用");
+    }
+  }
+
   const asset = await getAsset(id);
   if (!asset) return new Response("Not found", { status: 404 });
   return new Response(asset.data as BodyInit, {

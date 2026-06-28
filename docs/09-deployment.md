@@ -46,8 +46,9 @@
 
 - ⚠️ **执行迁移**：部署/升级时运行 `npm run db:init`（版本化、按序、单事务、幂等；记录于 `schema_migrations`）。
 - ✅ 连接池单例 + 空闲连接 `error` 监听 + `SIGTERM/SIGINT` 优雅关闭（`src/lib/db.ts`）。
-- 🔭 **图片资源**：当前存于 `assets` 表 BYTEA（M5 过渡）。上规模前迁移到 S3 兼容对象存储
-  （`.env.example` 已备 `S3_*`），DB 仅留元数据——否则 `pg_dump`/备份会被图片体积绑架。
+- ✅ **图片资源**：配置 `S3_BUCKET` 即走 S3 兼容对象存储（字节不再进 DB，`/api/assets` 重定向到签名 URL），
+  备份不被图片体积绑架；未配置时回退 DB(BYTEA)/内存（仅过渡）。⚠️ 签名 URL 由浏览器直连，`S3_ENDPOINT` 须**浏览器可达**（公网 endpoint / CDN）。
+  🔭 孤儿对象：导入失败已做 best-effort 删除，但崩溃/删除课件等仍可能残留——建议在 bucket 上配**生命周期规则**或定期 GC（按 `decks.data` 引用对账）兜底。
 - 🔭 **连接数**：多副本时保证 `PG_POOL_MAX × 副本数 ≤ max_connections`，副本多时前置 **PgBouncer**。
 - 备份：定期 `pg_dump` / 托管库 PITR；迁移前先备份。
 
