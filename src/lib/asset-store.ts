@@ -1,13 +1,13 @@
 /**
- * 资源（导入图片）存取。配置 DATABASE_URL 时存 PostgreSQL（持久化），否则内存回退。
+ * 资源（导入图片）存取。后端优先级：S3 对象存储（配置 S3_BUCKET）＞ PostgreSQL BYTEA（配置 DATABASE_URL）＞ 内存回退。
  * id 同步生成（供映射阶段先填入 image.src），字节异步写入（putAsset）。
- *
- * 技术债（见 roadmap M5 / task F3）：图片字节以 BYTEA 整存仅为过渡，生产前应迁移至
- * S3 兼容对象存储（复用 .env.example 的 S3_* 变量），DB 仅留 key/content_type 元数据——
- * 否则 assets 体积会绑架 pg_dump/PITR 备份成本。
+ * 启用 S3 后图片字节不再进 DB，/api/assets 重定向到签名 URL（见 src/lib/s3.ts）。
  */
 import { randomBytes } from "node:crypto";
 import { getPool, usePostgres, type Executor } from "./db";
+import { presignGet, putToS3, useS3 } from "./s3";
+
+export { useS3 } from "./s3";
 
 export interface Asset {
   contentType: string;
@@ -40,6 +40,11 @@ export async function putAsset(
   contentType: string,
   exec?: Executor,
 ): Promise<void> {
+  if (useS3) {
+    // 对象存储：字节存 S3，不入 DB（exec 不适用，故不参与 pg 事务）。
+    await putToS3(id, data, contentType);
+    return;
+  }
   if (usePostgres) {
     await (exec ?? getPool()).query(
       `INSERT INTO assets (id, content_type, data) VALUES ($1, $2, $3)
@@ -56,6 +61,11 @@ export async function putAsset(
   }
   mem.set(id, { contentType, data });
   memBytes += data.byteLength;
+}
+
+/** S3 模式下返回资源的时效签名 URL（供 /api/assets 重定向）；非 S3 模式返回 null。 */
+export async function getAssetUrl(id: string): Promise<string | null> {
+  return useS3 ? presignGet(id) : null;
 }
 
 export async function getAsset(id: string): Promise<Asset | null> {

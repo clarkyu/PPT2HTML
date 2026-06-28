@@ -22,8 +22,12 @@ const withSerwist = withSerwistInit({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // playwright-core 仅在 PDF 导出路由的 node 运行时按需加载，不打进构建产物。
-  serverExternalPackages: ["playwright-core"],
+  // 仅在对应 node 运行时按需加载的大依赖，不打进构建产物（PDF 导出 / S3 对象存储）。
+  serverExternalPackages: [
+    "playwright-core",
+    "@aws-sdk/client-s3",
+    "@aws-sdk/s3-request-presigner",
+  ],
 };
 
 export default withSerwist(nextConfig);
