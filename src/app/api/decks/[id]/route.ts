@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import type { Deck } from "@/schema/types";
 import { deckSchema } from "@/schema/zod";
-import { getDeck, saveDeck, VersionConflictError } from "@/lib/deck-store";
+import { getDeckRecord, saveDeck, VersionConflictError } from "@/lib/deck-store";
 import { errorResponse } from "@/lib/api-error";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { auth } from "@/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,9 +17,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
   const { id } = await params;
   try {
-    const deck = await getDeck(id);
-    if (!deck) return NextResponse.json({ error: "课件不存在" }, { status: 404 });
-    return NextResponse.json({ deck });
+    const rec = await getDeckRecord(id);
+    if (!rec) return NextResponse.json({ error: "课件不存在" }, { status: 404 });
+    return NextResponse.json({ deck: rec.deck });
   } catch (e) {
     return errorResponse(e, "读取失败");
   }
@@ -32,10 +33,22 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
   try {
-    const existing = await getDeck(id);
+    // 写操作需登录。
+    const session = await auth();
+    const userId = session?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: "请先登录" }, { status: 401 });
+    }
+    const existing = await getDeckRecord(id);
     if (!existing) {
       return NextResponse.json({ error: "课件不存在" }, { status: 404 });
     }
+    // 归属校验：他人课件不可改；匿名课件（owner 为 null）由当前登录者认领。
+    if (existing.ownerId && existing.ownerId !== userId) {
+      return NextResponse.json({ error: "无权编辑该课件" }, { status: 403 });
+    }
+    const ownerId = existing.ownerId ?? userId;
+
     const parsed = deckSchema.safeParse(await req.json());
     if (!parsed.success) {
       return NextResponse.json({ error: "课件数据不合法" }, { status: 400 });
@@ -47,14 +60,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const expectedVersion = parsed.data.version;
     const deck: Deck = {
       ...parsed.data,
-      createdAt: existing.createdAt,
-      meta: { ...parsed.data.meta, source: existing.meta.source },
+      createdAt: existing.deck.createdAt,
+      meta: { ...parsed.data.meta, source: existing.deck.meta.source },
       version: expectedVersion + 1,
       updatedAt: new Date().toISOString(),
     };
-    // 乐观锁下推到写语句（CAS）：比较+写入原子化，消除应用层 TOCTOU 丢更新。
+    // 乐观锁下推到写语句（CAS）：比较+写入原子化，消除应用层 TOCTOU 丢更新；同时写入归属（认领）。
     try {
-      await saveDeck(deck, { expectedVersion });
+      await saveDeck(deck, { expectedVersion, ownerId });
     } catch (e) {
       if (e instanceof VersionConflictError) {
         return NextResponse.json({ error: "课件已被更新，请刷新后重试" }, { status: 409 });
