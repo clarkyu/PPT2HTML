@@ -1,0 +1,347 @@
+/* CoursePlayer —— 网页版课件「混合幻灯片」播放器。暗色影院风 + 陶土强调色。 */
+
+.stage {
+  --bg0: #0c0a14;
+  --bg1: #16121f;
+  --txt: #f1edff;
+  --muted: #9a93b8;
+  --accent: #e08763;
+  --accent2: #c084fc;
+  --card: rgba(255, 255, 255, 0.04);
+  --line: rgba(255, 255, 255, 0.09);
+
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 80% -10%, #241a33 0%, transparent 55%),
+    radial-gradient(100% 80% at 0% 110%, #1c1530 0%, transparent 50%),
+    linear-gradient(160deg, var(--bg1), var(--bg0));
+  color: var(--txt);
+  font-family: ui-sans-serif, system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+  display: grid;
+  place-items: center;
+  user-select: none;
+}
+
+/* 顶部进度条 + 信息 */
+.progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.07);
+  z-index: 30;
+}
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.topbar {
+  position: absolute;
+  top: 18px;
+  left: 26px;
+  right: 26px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  z-index: 25;
+}
+.brand { font-weight: 600; }
+
+/* 幻灯片 */
+.slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 72px clamp(24px, 7vw, 120px);
+  z-index: 10;
+}
+.enterNext { animation: enterR 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.enterPrev { animation: enterL 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* 交互/内容较高的页：顶对齐 + 可滚动，避免标题被裁、内容压住底部导航 */
+.slideTall {
+  justify-content: flex-start;
+  overflow-y: auto;
+  padding-top: 46px;
+  padding-bottom: 96px;
+}
+.slideTall .eyebrow { margin-bottom: 10px; }
+.slideTall .h2 { font-size: clamp(22px, 3vw, 34px); margin-bottom: 6px; }
+.slideTall .lead { margin-bottom: 16px; font-size: clamp(14px, 1.6vw, 17px); }
+
+.eyebrow {
+  font-size: clamp(12px, 1.4vw, 14px);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 18px;
+}
+.h2 {
+  font-size: clamp(28px, 4.4vw, 52px);
+  font-weight: 800;
+  line-height: 1.12;
+  margin: 0 0 14px;
+  letter-spacing: -0.01em;
+}
+.lead {
+  font-size: clamp(15px, 1.9vw, 20px);
+  color: var(--muted);
+  margin: 0 0 38px;
+  max-width: 760px;
+  line-height: 1.6;
+}
+
+/* 封面 */
+.coverTitle {
+  font-size: clamp(56px, 12vw, 150px);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  margin: 0;
+  background: linear-gradient(120deg, #fff 0%, var(--accent) 55%, var(--accent2) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.coverSub {
+  font-size: clamp(17px, 2.6vw, 30px);
+  color: var(--txt);
+  opacity: 0.9;
+  margin: 26px 0 0;
+  font-weight: 500;
+}
+.hint {
+  margin-top: 54px;
+  font-size: 14px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.hintKey {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--txt);
+  animation: nudge 1.8s ease-in-out infinite;
+}
+
+/* 卡片网格 */
+.cards {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  max-width: 980px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+.card {
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  backdrop-filter: blur(6px);
+}
+.cardLabel {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 14px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 30%, transparent), color-mix(in srgb, var(--accent2) 30%, transparent));
+  color: #fff;
+}
+.cardTitle { font-size: 19px; font-weight: 700; margin: 0 0 6px; }
+.cardDesc { font-size: 14.5px; line-height: 1.55; color: var(--muted); margin: 0; }
+
+/* Aha 交互页容器 */
+.pg { width: 100%; max-width: 760px; }
+
+/* 小测 */
+.quiz { width: 100%; max-width: 720px; }
+.opts { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--txt);
+  font-size: 16.5px;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.opt:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-1px); }
+.optTag {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--muted);
+}
+.optCorrect { border-color: #3ec98a; background: rgba(62, 201, 138, 0.14); }
+.optCorrect .optTag { background: #3ec98a; color: #06301d; }
+.optWrong { border-color: #e0635f; background: rgba(224, 99, 95, 0.12); opacity: 0.85; }
+.optWrong .optTag { background: #e0635f; color: #3a0c0b; }
+.explain {
+  margin-top: 18px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: #d7d0ee;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 14px 16px;
+  text-align: left;
+  animation: enterR 0.4s ease both;
+}
+
+/* 小结 */
+.bullets {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 30px;
+  text-align: left;
+  max-width: 700px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.bullets li {
+  display: flex;
+  gap: 13px;
+  font-size: clamp(16px, 2vw, 20px);
+  line-height: 1.5;
+  align-items: flex-start;
+}
+.tick {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  margin-top: 2px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+}
+.next {
+  font-size: 15px;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  padding: 12px 18px;
+}
+.next b { color: var(--accent); font-weight: 600; }
+
+/* 底部导航 */
+.nav {
+  position: absolute;
+  bottom: 22px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  z-index: 25;
+}
+.arrow {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--txt);
+  font-size: 18px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all 0.16s ease;
+}
+.arrow:hover:not(:disabled) { border-color: var(--accent); transform: scale(1.08); }
+.arrow:disabled { opacity: 0.3; cursor: default; }
+.dots { display: flex; gap: 9px; }
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.dotActive { background: var(--accent); transform: scale(1.35); }
+
+/* 边缘点击翻页带（不挡中间交互内容） */
+.edge {
+  position: absolute;
+  top: 0;
+  bottom: 64px;
+  width: 7%;
+  z-index: 5;
+  cursor: pointer;
+}
+.edgeL { left: 0; }
+.edgeR { right: 0; }
+
+@keyframes enterR {
+  from { opacity: 0; transform: translateX(46px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes enterL {
+  from { opacity: 0; transform: translateX(-46px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes nudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+/* 进入时子元素逐个上浮 */
+.stagger > * { animation: fadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger > *:nth-child(2) { animation-delay: 0.13s; }
+.stagger > *:nth-child(3) { animation-delay: 0.21s; }
+.stagger > *:nth-child(4) { animation-delay: 0.29s; }
+.stagger > *:nth-child(5) { animation-delay: 0.37s; }
+.stagger > *:nth-child(6) { animation-delay: 0.45s; }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enterNext, .enterPrev, .stagger > *, .explain { animation: none; }
+  .hintKey { animation: none; }
+}
