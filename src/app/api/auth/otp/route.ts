@@ -20,8 +20,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
     }
     const code = generateOtpCode();
-    await saveOtp(phone, code);
+    // 先发送、成功后再落库：发送失败则不残留可用验证码（用户可直接重试）。
     await getOtpSender().send(phone, code);
+    await saveOtp(phone, code);
 
     // 仅在 mock 渠道 + 非生产时回显验证码，方便本地/CI 自测；生产或真实短信时不回显。
     const devCode = otpDeliveryIsMock && process.env.NODE_ENV !== "production" ? code : undefined;
