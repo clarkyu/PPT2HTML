@@ -29,16 +29,18 @@
 
 1. **建项目**：Railway → New Project → Deploy from GitHub repo → 选 `clarkyu/PPT2HTML`，
    分支可先用本功能分支或合并后的 `main`。它会读到 `railway.json` + `Dockerfile` 自动开始构建。
-2. **加数据库**：项目里 → New → Database → **Add PostgreSQL**。Railway 会自动把连接串注入到
-   **同项目**的服务环境变量 `DATABASE_URL`（无需手填）。
-   > 托管库走 TLS：若连接失败提示证书问题，给 `DATABASE_URL` 末尾加 `?sslmode=require` 或设 `PGSSL=require`。
-3. **配环境变量**（服务 → Variables，见下表 §3）：至少 `AUTH_SECRET`。想要能登录与真生成，按需加 OTP / LLM 项。
-4. **公网域名**：服务 → Settings → Networking → **Generate Domain**。Railway 会注入 `$PORT`，
+2. **加数据库**：项目里 → New → Database → **Add PostgreSQL**（同项目，默认服务名 `Postgres`）。
+3. **⭐ 把 `DATABASE_URL` 接到 app 服务**：选 **app 服务**（不是 Postgres）→ **Variables** → New Variable →
+   名 `DATABASE_URL`，值填**引用** `${{Postgres.DATABASE_URL}}`。
+   （Railway 不会自动把库的连接串注入到别的服务，需用这条引用变量显式接过去；`Postgres` 为上一步数据库服务名。）
+   > 托管库走 TLS：若连接失败提示证书问题，给连接串末尾加 `?sslmode=require` 或设 `PGSSL=require`。
+4. **配其余环境变量**（app 服务 → Variables，见下表 §3）：至少 `AUTH_SECRET`。想要能登录与真生成，按需加 OTP / LLM 项。
+5. **公网域名**：app 服务 → Settings → Networking → **Generate Domain**。Railway 会注入 `$PORT`，
    镜像已监听 `0.0.0.0:$PORT`，无需改动。
-5. **设 `AUTH_URL`**：拿到域名后填 `AUTH_URL=https://<你的域名>`，重新部署。
+6. **设 `AUTH_URL`**：拿到域名后填 `AUTH_URL=https://<你的域名>`，重新部署。
    （固定回调/重定向所用的站点 origin，不再依赖可伪造的 `Host`/`x-forwarded-*`。
    会话 Cookie 的 `Secure` 属性由 `NODE_ENV=production`（镜像已设）自动开启、与本项无关，但仍需边缘层为 HTTPS。）
-6. **冒烟**：访问 `https://<域名>/api/health` 应返回 `{"status":"ok",...}`；首页可开 → 一句话生成 → 导出 PDF。
+7. **冒烟**：访问 `https://<域名>/api/health` 应返回 `{"status":"ok",...}`；首页可开 → 一句话生成 → 导出 PDF。
 
 > 数据库迁移：容器**每次启动**会自动执行 `npm run db:init`（幂等、按版本记账，已应用的跳过），
 > 无需手动跑。失败会让容器非零退出（不会带着旧库结构静默上线）。
@@ -49,7 +51,7 @@
 
 | 变量 | 怎么来 |
 | --- | --- |
-| `DATABASE_URL` | 加 PostgreSQL 插件后 Railway **自动注入**（同项目内）。 |
+| `DATABASE_URL` | 加 PostgreSQL 插件后，在 app 服务用引用变量接入：`${{Postgres.DATABASE_URL}}`（见 §2.3）。 |
 | `AUTH_SECRET` | 自己生成：`openssl rand -base64 32`，粘进 Variables。**绝不提交。** |
 
 ### 想要「能登录」（原型二选一）
