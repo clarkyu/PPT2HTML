@@ -4,6 +4,9 @@ import type { OtpSender } from "./types";
 export const mockSender: OtpSender = {
   name: "mock",
   async send(phone, code) {
-    console.info(`[otp:mock] ${phone} 的验证码：${code}（5 分钟内有效）`);
+    // 仅非生产打印（纵深防御：避免验证码这类短期凭证落入生产日志）。
+    if (process.env.NODE_ENV !== "production") {
+      console.info(`[otp:mock] ${phone} 的验证码：${code}（5 分钟内有效）`);
+    }
   },
 };

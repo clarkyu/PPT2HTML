@@ -89,7 +89,20 @@
 | `import` | .pptx 解析与映射 | OOXML 抽取、映射器 |
 | `export` | PDF 导出 | Puppeteer 渲染管线 |
 | `persistence` | 课件/用户存取 | node-postgres、migrations、Repository（src/lib/*-store.ts） |
-| `auth` | 注册登录、作品空间 | Auth.js 配置 |
+| `auth` | 注册登录、作品空间、访问控制 | Auth.js 配置（手机号+OTP，JWT）、归属/写保护 |
+
+## 访问控制模型（M5-2）
+
+课件归属记录在 `decks.owner_id`（DB 列，非 Deck 内容 schema 的一部分；`NULL` = 匿名/按链接公开）。
+
+| 操作 | 规则 |
+| --- | --- |
+| 创建（生成/导入） | 登录则 `owner_id = 当前用户`；未登录则 `NULL`（按链接公开） |
+| 读取 / 播放（GET、`/deck/[id]`） | **按链接公开**（产品有意决策，非缺陷：课件即链接） |
+| 保存编辑（PUT `/api/decks/[id]`） | 需登录（401）；他人课件拒绝（403）；匿名课件由登录者**认领**（写入 owner） |
+| 「我的课件」（首页） | `listDecks(ownerId)` 仅返回本人课件 |
+
+> 注：读取公开是刻意设计，勿当作越权 bug「修复」；写入侧才做鉴权与归属校验。
 
 ## 渲染层：自适应而非固定尺寸
 

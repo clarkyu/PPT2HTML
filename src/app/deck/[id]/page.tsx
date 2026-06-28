@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDeck } from "@/lib/deck-store";
+import { auth } from "@/auth";
+import { getDeckRecord } from "@/lib/deck-store";
 import { ThemedSurface } from "@/renderer/ThemedSurface";
 import { SlideRenderer } from "@/renderer/SlideRenderer";
 import { flattenSlides } from "@/renderer/flatten";
@@ -30,8 +31,13 @@ const PEDAGOGY_LABELS: Record<string, string> = {
 
 export default async function DeckPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const deck = await getDeck(id);
-  if (!deck) notFound();
+  const [session, rec] = await Promise.all([auth(), getDeckRecord(id)]);
+  if (!rec) notFound();
+  const deck = rec.deck;
+
+  // 仅登录者本人的课件、或尚无归属（可认领）的课件才显示「编辑」入口。
+  const uid = session?.user?.id;
+  const canEdit = !!uid && (!rec.ownerId || rec.ownerId === uid);
 
   const flat = flattenSlides(deck);
   const template = getTemplate(deck.templateId);
@@ -60,12 +66,14 @@ export default async function DeckPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
         <div className="flex gap-2">
-          <Link
-            href={`/deck/${deck.id}/edit`}
-            className="rounded-lg border border-muted/30 px-4 py-2.5 font-medium text-foreground hover:bg-surface"
-          >
-            编辑
-          </Link>
+          {canEdit && (
+            <Link
+              href={`/deck/${deck.id}/edit`}
+              className="rounded-lg border border-muted/30 px-4 py-2.5 font-medium text-foreground hover:bg-surface"
+            >
+              编辑
+            </Link>
+          )}
           <Link
             href={`/deck/${deck.id}/play`}
             className="rounded-lg bg-primary px-5 py-2.5 font-medium text-white shadow hover:opacity-90"

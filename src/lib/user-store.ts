@@ -37,6 +37,17 @@ function verifyCodeHash(code: string, stored: string): boolean {
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
+// 在「无有效验证码 / 过期 / 超限」早退分支也付出一次等价 scrypt 开销，拉平时延，
+// 消除「该手机号当前是否处于有效 OTP 窗口」的可观测侧信道。
+const DUMMY_OTP_HASH = hashCode("000000");
+function burnVerifyTime(): void {
+  try {
+    verifyCodeHash("000000", DUMMY_OTP_HASH);
+  } catch {
+    /* ignore */
+  }
+}
+
 // ---- 内存回退 ----
 const memUsers = new Map<string, User>(); // key: phone
 type OtpRow = { codeHash: string; expiresAt: number; attempts: number };
@@ -97,10 +108,14 @@ export async function verifyOtp(phone: string, code: string): Promise<boolean> {
       [phone],
     );
     const row = rows[0];
-    if (!row) return false;
+    if (!row) {
+      burnVerifyTime();
+      return false;
+    }
     const expired = new Date(row.expires_at).getTime() < Date.now();
     if (expired || row.attempts > OTP_MAX_ATTEMPTS) {
       await pool.query(`DELETE FROM otp_codes WHERE phone = $1`, [phone]);
+      burnVerifyTime();
       return false;
     }
     if (verifyCodeHash(code, row.code_hash)) {
@@ -110,10 +125,14 @@ export async function verifyOtp(phone: string, code: string): Promise<boolean> {
     return false;
   }
   const row = memOtp.get(phone);
-  if (!row) return false;
+  if (!row) {
+    burnVerifyTime();
+    return false;
+  }
   row.attempts += 1;
   if (row.expiresAt < Date.now() || row.attempts > OTP_MAX_ATTEMPTS) {
     memOtp.delete(phone);
+    burnVerifyTime();
     return false;
   }
   if (verifyCodeHash(code, row.codeHash)) {
