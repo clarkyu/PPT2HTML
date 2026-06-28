@@ -1,5 +1,6 @@
 import { getAsset, getAssetUrl, useS3 } from "@/lib/asset-store";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { errorResponse } from "@/lib/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,13 +15,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!/^a_[A-Za-z0-9_-]+$/.test(id)) return new Response("Not found", { status: 404 });
 
   if (useS3) {
-    const url = await getAssetUrl(id);
-    if (!url) return new Response("Not found", { status: 404 });
-    // 重定向到时效签名 URL；不缓存重定向本身（签名会过期）。
-    return new Response(null, {
-      status: 302,
-      headers: { Location: url, "Cache-Control": "private, no-store" },
-    });
+    try {
+      const url = await getAssetUrl(id);
+      if (!url) return new Response("Not found", { status: 404 });
+      // 重定向到时效签名 URL；不缓存重定向本身（签名会过期）。
+      return new Response(null, {
+        status: 302,
+        headers: { Location: url, "Cache-Control": "private, no-store" },
+      });
+    } catch (e) {
+      // 配置/权限/网络错误经统一错误响应转 5xx（不与「不存在」的 404 混淆）。
+      return errorResponse(e, "资源暂不可用");
+    }
   }
 
   const asset = await getAsset(id);

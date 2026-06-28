@@ -3,7 +3,8 @@ import { parsePptx } from "@/import/pptx";
 import { mapPptxToDeck } from "@/import/map";
 import { deckSchema } from "@/schema/zod";
 import { newDeckId, saveDeck } from "@/lib/deck-store";
-import { putAsset } from "@/lib/asset-store";
+import { putAsset, useS3 } from "@/lib/asset-store";
+import { deleteFromS3 } from "@/lib/s3";
 import { errorResponse } from "@/lib/api-error";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { usePostgres, withTx } from "@/lib/db";
@@ -71,15 +72,23 @@ export async function POST(req: Request) {
     // 登录则归属导入者；匿名为 null（按链接公开）。
     const session = await auth();
     const ownerId = session?.user?.id ?? null;
-    // 资源 + 课件单事务写入：任一步失败整体回滚，不留孤儿资源（内存回退无需事务）。
-    if (usePostgres) {
-      await withTx(async (c) => {
-        for (const a of assets) await putAsset(a.id, a.data, a.contentType, c);
-        await saveDeck(deck, { exec: c, ownerId });
-      });
-    } else {
-      await Promise.all(assets.map((a) => putAsset(a.id, a.data, a.contentType)));
-      await saveDeck(deck, { ownerId });
+    // 资源 + 课件写入。pg 用事务保证原子；S3 对象在事务外，写库失败时 best-effort 清理孤儿对象。
+    try {
+      if (usePostgres) {
+        await withTx(async (c) => {
+          for (const a of assets) await putAsset(a.id, a.data, a.contentType, c);
+          await saveDeck(deck, { exec: c, ownerId });
+        });
+      } else {
+        await Promise.all(assets.map((a) => putAsset(a.id, a.data, a.contentType)));
+        await saveDeck(deck, { ownerId });
+      }
+    } catch (writeErr) {
+      // S3 模式下图片已上传但落库失败 → 删除已上传对象，避免孤儿堆积（durable 方案另见 bucket 生命周期）。
+      if (useS3) {
+        await Promise.allSettled(assets.map((a) => deleteFromS3(a.id)));
+      }
+      throw writeErr;
     }
     return NextResponse.json({ id: deck.id, slides: parsed.slides.length });
   } catch (e) {
