@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { normalizePhone } from "@/auth/phone";
 import { generateOtpCode, saveOtp } from "@/lib/user-store";
-import { getOtpSender, otpDeliveryIsMock } from "@/auth/otp";
+import { getOtpSender, otpDeliveryIsMock, otpAllowMock } from "@/auth/otp";
 import { errorResponse } from "@/lib/api-error";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -24,8 +24,10 @@ export async function POST(req: Request) {
     await getOtpSender().send(phone, code);
     await saveOtp(phone, code);
 
-    // 仅在 mock 渠道 + 非生产时回显验证码，方便本地/CI 自测；生产或真实短信时不回显。
-    const devCode = otpDeliveryIsMock && process.env.NODE_ENV !== "production" ? code : undefined;
+    // mock 渠道下回显验证码方便自测：非生产默认回显；生产仅当显式开启 OTP_ALLOW_MOCK（演示逃生阀）。
+    // 真实短信渠道或未开启演示阀时永不回显。
+    const devCode =
+      otpDeliveryIsMock && (process.env.NODE_ENV !== "production" || otpAllowMock) ? code : undefined;
     return NextResponse.json({ ok: true, ...(devCode ? { devCode } : {}) });
   } catch (e) {
     return errorResponse(e, "验证码下发失败");
