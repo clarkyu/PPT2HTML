@@ -3,6 +3,9 @@
 把散落在各里程碑评审里的「生产前 TODO」收敛为一份可执行清单。面向**长驻 Node 进程**（`next start`）
 部署；serverless 的差异在文末单列。配合 `.env.example`（权威变量样例）阅读。
 
+> 想最快出原型？看 `docs/10-railway.md`（Railway 一页手册）。仓库已备好 `Dockerfile`（内置 Chromium +
+> 中文字体）、`railway.json`、`/api/health`，任意容器平台（Railway/Render/Fly/Cloud Run）开箱即用。
+
 > 约定：✅ = 已在代码内就绪；⚠️ = 上线前必须人工处理；🔭 = 规模化/后续增强项。
 
 ---
@@ -15,8 +18,9 @@
 - **Chromium**（PDF 导出）：需可执行的 Chromium，路径由 `PW_CHROMIUM_PATH` 指定（默认 `/opt/pw-browsers/chromium`）。
   - 中文字体：✅ 已随应用内置 `public/fonts/noto-sans-sc-400.woff2`（仅打印路由加载），导出 PDF 自带中文字形，
     不依赖宿主机字体；若运行镜像另装 `fonts-noto-cjk` 亦可，但非必需。
-  - ⚠️ 沙箱：当前以 `--no-sandbox` 启动 Chromium（容器内常以 root 运行的折中）。条件允许时应**以非 root 用户运行并启用沙箱**，
-    渲染「按链接公开」的任意课件内容时更安全。
+  - ⚠️ 沙箱：仍以 `--no-sandbox` 启动 Chromium（rootless 容器无 SYS_ADMIN/user-namespace 时的折中）。
+    ✅ 本仓库 `Dockerfile` 已**以非 root 用户运行**（渲染进程被攻破也落到非特权用户，非容器 root）；
+    条件允许时进一步去掉 `--no-sandbox` 并启用沙箱，渲染「按链接公开」的任意课件内容时更安全。
 - **HTTPS**：PWA（Service Worker）与安全 Cookie 均要求 HTTPS；TLS 一般在反代/网关终止。
 
 ## 2. 环境变量
@@ -67,7 +71,8 @@ npm run start          # 启动（next start，长驻进程）
 
 - [ ] ⚠️ `AUTH_SECRET` 为强随机值，**绝非**样例占位（`change-me-…` / `dev-insecure-…`）。占位泄漏即可伪造任意用户会话。
 - [ ] ⚠️ **轮换任何曾以明文出现/共享过的凭据**（LLM API Key、短信密钥等）；`.env` 永不入库（已 gitignore）。
-- [ ] ✅ 生产会话 Cookie 启用 `Secure` + `__Secure-/__Host-` 前缀（`useSecureCookies`）。需反代透传 `X-Forwarded-Proto: https`，或设 `AUTH_URL`。
+- [ ] ✅ 生产会话 Cookie 启用 `Secure` + `__Secure-/__Host-` 前缀（`useSecureCookies`，由 `NODE_ENV=production` 决定，与 `AUTH_URL` 无关）。前提：边缘层须为 HTTPS。`AUTH_URL` 另用于固定回调/重定向 origin。
+- [ ] ⚠️ `AUTH_SECRET` 非公开占位（`change-me…`/`dev-insecure…`）：生产已硬失败拒绝以占位启动（`src/auth.ts`）。
 - [ ] ✅ 写操作鉴权（401/403/认领）、读取按链接公开（产品决策）。课件 id/资源 id 为 CSPRNG，不可枚举。
 - [ ] ✅ 各路由内存限流就绪；🔭 多副本下不跨实例共享，规模化需换 **Redis / 网关限流**（见 §7）。
 - [ ] ✅ PDF 导出：全局并发闸 + 渲染超时 + 页数上界；`EXPORT_ORIGIN` 固定以收敛 SSRF 面。
@@ -75,8 +80,9 @@ npm run start          # 启动（next start，长驻进程）
 
 ## 6. 生产前必做（功能补全）
 
-- [ ] ⚠️ **接入真实短信渠道**：`src/auth/otp/sms.ts` 目前是 stub（调用即抛错）。配 `SMS_PROVIDER` 后必须实现具体服务商
-      （阿里云/腾讯云短信等）调用，否则生产无法登录（缺 `SMS_PROVIDER` 会硬失败、配了但未实现会 500）。
+- [ ] ⚠️ **接入真实短信渠道**：已内置 `aliyun`（阿里云短信）与 `http`（通用 Webhook 网关）两种实现
+      （`src/auth/otp/`）。生产须配 `SMS_PROVIDER` + 对应 `SMS_*`，否则 OTP 路由硬失败。
+      原型演示可临时置 `OTP_ALLOW_MOCK=1` 放行 mock 渠道（验证码登录页回显）——⚠️ 仅限原型，上线前移除。
 - [ ] 🔭 图片迁移对象存储（见 §3）。
 - [ ] 验证 LLM Key 有效、额度充足；确认默认 provider 与各档位模型符合预期。
 
@@ -97,7 +103,7 @@ npm run start          # 启动（next start，长驻进程）
 - [ ] `/deck/[id]` 预览、`/deck/[id]/play` 全屏播放正常。
 - [ ] 导出横版/竖版 PDF 均成功，**中文不为豆腐块**、含公式/主题色。
 - [ ] PWA：`/manifest.webmanifest`、`/sw.js` 200，可「添加到主屏」；断网时已访问页可用、未缓存页落 `/~offline`。
-- [ ] `/api/health` 类探活（如平台需要，可后续补一个轻量端点）。
+- [ ] ✅ `/api/health` 轻量存活探针（返回 `200 {status:"ok"}`，不依赖 DB）；`railway.json` 已据此配健康检查。
 
 ## 9. 回滚
 

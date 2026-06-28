@@ -81,7 +81,7 @@ export default function LoginPage() {
       )}
       {devCode && (
         <p className="mt-4 rounded-lg bg-accent/15 px-3 py-2 text-xs text-foreground/80">
-          离线模式验证码：<strong className="font-mono">{devCode}</strong>（仅开发环境回显）
+          演示模式验证码：<strong className="font-mono">{devCode}</strong>（未接入真实短信时回显）
         </p>
       )}
 

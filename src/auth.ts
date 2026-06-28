@@ -16,6 +16,20 @@ if (!process.env.AUTH_SECRET && process.env.NODE_ENV !== "production") {
   console.warn("[auth] 使用每次启动随机生成的临时 AUTH_SECRET（仅本地开发，重启将失效所有会话）");
 }
 
+// 生产拒绝以「公开占位」AUTH_SECRET 启动：占位值随仓库公开，一旦带入生产，任何人可凭它伪造任意用户
+// 的 JWT 会话（彻底的认证绕过）。与 src/lib/db.ts / src/auth/otp/index.ts 的生产硬失败一致；
+// 构建期豁免，避免误伤 next build。（缺失而非占位的情况仍交给 NextAuth 的 MissingSecret。）
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+if (
+  process.env.NODE_ENV === "production" &&
+  !isBuildPhase &&
+  /^(change-me|dev-insecure)/i.test(process.env.AUTH_SECRET ?? "")
+) {
+  throw new Error(
+    "[auth] 生产环境 AUTH_SECRET 仍为公开占位值：拒绝启动。请用 `openssl rand -base64 32` 生成强随机值并经平台 secret 注入。",
+  );
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   // 显式固定会话 cookie 安全语义，不依赖部署层透传 x-forwarded-proto：

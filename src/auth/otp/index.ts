@@ -10,11 +10,25 @@ const provider = (process.env.SMS_PROVIDER ?? "").trim().toLowerCase();
 /** 未配置 SMS_PROVIDER 时回退 mock（离线/开发可用，仅打印日志）。 */
 export const otpDeliveryIsMock = provider === "";
 
+// 演示逃生阀：原型/演示部署没有真实短信账号时，显式置 OTP_ALLOW_MOCK=1 可在生产放行 mock 渠道，
+// 验证码改由 OTP 接口直接回显（见 otp 路由）。⚠️ 仅供原型——任何人可凭回显码登录任意手机号，
+// 切勿用于有真实用户的环境。接入真实短信（SMS_PROVIDER）后请移除此开关。
+const allowMockRaw = (process.env.OTP_ALLOW_MOCK ?? "").trim().toLowerCase();
+export const otpAllowMock = ["1", "true", "yes", "on"].includes(allowMockRaw);
+
 // 生产必须配置真实短信渠道：否则验证码只会打印到日志、用户永远收不到（登录静默瘫痪）。
 // 与 src/lib/db.ts 的生产硬失败策略一致；构建期豁免，避免误伤 next build。
+// OTP_ALLOW_MOCK 显式开启时改为放行 + 醒目告警（演示用）。
 const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
 if (otpDeliveryIsMock && process.env.NODE_ENV === "production" && !isBuildPhase) {
-  throw new Error("[otp] 生产环境必须配置 SMS_PROVIDER：拒绝以 mock 短信渠道启动（验证码无法送达）");
+  if (otpAllowMock) {
+    console.warn(
+      "[otp] ⚠️ OTP_ALLOW_MOCK 已开启：生产以 mock 短信渠道运行，验证码经接口回显——" +
+        "仅限原型/演示，任何人可登录任意手机号，切勿用于真实用户。",
+    );
+  } else {
+    throw new Error("[otp] 生产环境必须配置 SMS_PROVIDER：拒绝以 mock 短信渠道启动（验证码无法送达）");
+  }
 }
 
 /** 按 SMS_PROVIDER 选择渠道：aliyun | http(webhook) | 空(mock)。 */
