@@ -304,6 +304,22 @@ export const mockProvider: LLMProvider = {
         result = synthRefine(inp.slide, inp.instruction);
         break;
       }
+      // 网页版课件（CourseDoc）：合成实现在 @/course/mock（按需加载，避免 provider 层反向依赖打包膨胀）。
+      case "coursePlan": {
+        const { synthCoursePlan } = await import("@/course/mock");
+        result = synthCoursePlan((mock.input as { sentence: string }).sentence);
+        break;
+      }
+      case "courseScene": {
+        const { synthCourseScene } = await import("@/course/mock");
+        const inp = mock.input as {
+          sentence: string;
+          plan: import("@/course/schema").CoursePlan;
+          index: number;
+        };
+        result = synthCourseScene(inp.sentence, inp.plan, inp.index);
+        break;
+      }
     }
     return schema.parse(result);
   },

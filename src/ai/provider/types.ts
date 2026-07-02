@@ -14,7 +14,7 @@ export type ModelTier = "light" | "standard" | "heavy";
 
 /** Mock 合成配方：key 决定合成什么，input 提供素材。真实 Provider 忽略它。 */
 export interface MockRecipe {
-  key: "intent" | "outline" | "section" | "validate" | "refine";
+  key: "intent" | "outline" | "section" | "validate" | "refine" | "coursePlan" | "courseScene";
   input: unknown;
 }
 
