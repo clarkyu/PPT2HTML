@@ -103,6 +103,20 @@
   line-height: 1.6;
 }
 
+/* 大字宣言 */
+.stmtTitle {
+  font-size: clamp(34px, 6.2vw, 76px);
+  font-weight: 850;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  margin: 0 0 18px;
+  max-width: 900px;
+  background: linear-gradient(115deg, #fff 30%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 /* 封面 */
 .coverTitle {
   font-size: clamp(56px, 12vw, 150px);

@@ -71,13 +71,19 @@ export default async function HomePage() {
       </header>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        <ImportButton />
+        <Link
+          href="/course"
+          className="rounded-lg bg-gradient-to-r from-orange-500 to-purple-500 px-5 py-2.5 font-medium text-white shadow hover:opacity-90"
+        >
+          🎬 一句话成课（新）
+        </Link>
         <Link
           href="/create"
           className="rounded-lg bg-primary px-5 py-2.5 font-medium text-white shadow hover:opacity-90"
         >
           ✨ 一句话生成
         </Link>
+        <ImportButton />
       </div>
 
       {listFailed && (

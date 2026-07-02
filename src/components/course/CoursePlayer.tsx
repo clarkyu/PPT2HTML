@@ -1,39 +1,16 @@
 "use client";
 
 /**
- * CoursePlayer —— 网页版课件的「混合幻灯片」播放器（Phase 1 雏形）。
+ * CoursePlayer —— 网页版课件的「混合幻灯片」播放器（Phase 1）。
  * 全屏一页一主角，键盘/边缘点击/按钮/圆点翻页，方向感知转场，进入时子元素逐个上浮。
- * 交互页（playground）嵌入 AiPlayground。后续接入数据模型 + 生成器，由生成器产出 Slide[]。
+ * 数据契约来自 @/course/schema（生成流水线的分镜脚本）；slides 允许在生成期间增长（就绪前缀流式）。
  */
 import { useCallback, useEffect, useState } from "react";
-import AiPlayground, { type PlaygroundScript } from "@/components/interactive/AiPlayground";
+import AiPlayground from "@/components/interactive/AiPlayground";
+import type { CourseSlide } from "@/course/schema";
 import styles from "./CoursePlayer.module.css";
 
-export type Slide =
-  | { kind: "cover"; eyebrow: string; title: string; subtitle: string }
-  | {
-      kind: "cards";
-      eyebrow: string;
-      title: string;
-      lead?: string;
-      cards: { label: string; title: string; desc: string }[];
-    }
-  | { kind: "playground"; eyebrow: string; title: string; lead?: string; scripts: PlaygroundScript[] }
-  | {
-      kind: "quiz";
-      eyebrow: string;
-      title: string;
-      options: string[];
-      answer: number;
-      explain: string;
-    }
-  | {
-      kind: "summary";
-      eyebrow: string;
-      title: string;
-      bullets: string[];
-      next: string;
-    };
+export type Slide = CourseSlide;
 
 const LETTERS = ["A", "B", "C", "D", "E"];
 
@@ -83,6 +60,14 @@ function SlideView({ slide }: { slide: Slide }) {
           <span className={styles.hint}>
             <span className={styles.hintKey}>→</span> 按方向键 / 点击翻页开始
           </span>
+        </div>
+      );
+    case "statement":
+      return (
+        <div className={styles.stagger} style={{ display: "contents" }}>
+          <p className={styles.eyebrow}>{slide.eyebrow}</p>
+          <h2 className={styles.stmtTitle}>{slide.title}</h2>
+          {slide.sub && <p className={styles.lead}>{slide.sub}</p>}
         </div>
       );
     case "cards":
